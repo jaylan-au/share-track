@@ -710,7 +710,7 @@ export class DataManager {
         const shareLots = this.getAll<ShareLot>('ShareLot').filter((lot) => lot.isOpen !== false);
         const securities = this.getAll<ShareSecurity>('ShareSecurity');
 
-        const entityMap = new Map(holdingEntities.map((entity) => [entity.id, entity]));
+        const entityMap = new Map(holdingEntities.map((entity) => [String(entity.id), entity]));
         const securityMap = new Map(securities.map((security) => [security.code, security]));
 
         const groupedRows = new Map<string, PortfolioRow>();
@@ -719,7 +719,7 @@ export class DataManager {
             const key = groupBy === 'security' ? lot.code : `${lot.holdingEntity}:${lot.code}`;
             const currentRow = groupedRows.get(key) ?? {
                 id: key,
-                entity: groupBy === 'security' ? 'All entities' : entityMap.get(lot.holdingEntity)?.name ?? lot.holdingEntity,
+                entity: groupBy === 'security' ? 'All entities' : entityMap.get(String(lot.holdingEntity))?.name ?? lot.holdingEntity,
                 code: lot.code,
                 unitCount: 0,
                 unitCostAverage: 0,

@@ -33,13 +33,13 @@ export function BulkTransactionModal({
                         <textarea
                             rows={14}
                             value={transactionLines}
-                            placeholder={'buy,ABC,entity-1,100,12.50,2026-01-15\nsell\tABC\tentity-1\t25\t14.00\t2026-02-20'}
+                            placeholder={'buy,ASX:ABC,Personal Broker,100,12.50,2026-01-15\nsell\tASX:ABC\tPersonal Broker\t25\t14.00\t2026-02-20'}
                             onInput={(event) => onChange((event.target as HTMLTextAreaElement).value)}
                         />
                     </label>
 
                     <p class="data-upload-note">
-                        One transaction per line: type, code, holding entity, units, price, date, optional fees, optional document reference. Separate values with spaces, commas, or tabs. Sell transactions use available lots in FIFO order.
+                        One transaction per line: type, share code, holding entity name, units, price, date, optional fees, optional document reference. Separate values with spaces, commas, or tabs. Sell transactions use available lots in FIFO order.
                     </p>
 
                     <div class="form-actions">

@@ -739,9 +739,38 @@ class App extends Component<{}, AppState> {
 
         try {
             let processedCount = 0;
+            const securities = this.dataManager.getAll<ShareSecurity>('ShareSecurity');
+            const holdingEntities = this.dataManager.getAll<HoldingEntity>('HoldingEntity');
 
             lines.forEach((line, index) => {
-                const parts = line.split(/[\s,\t]+/).filter(Boolean);
+                let parts: string[];
+                if (line.includes(',')) {
+                    parts = line.split(',').map((part) => part.trim());
+                } else if (line.includes('\t')) {
+                    parts = line.split('\t').map((part) => part.trim());
+                } else {
+                    const whitespaceParts = line.split(/\s+/).filter(Boolean);
+                    const matchingEntity = holdingEntities
+                        .slice()
+                        .sort((first, second) => second.name.length - first.name.length)
+                        .find((entry) => {
+                            const entityWordCount = entry.name.trim().split(/\s+/).length;
+                            const entityText = whitespaceParts.slice(2, 2 + entityWordCount).join(' ');
+                            return entityText.toLowerCase() === entry.name.toLowerCase();
+                        });
+
+                    if (matchingEntity) {
+                        const entityWordCount = matchingEntity.name.trim().split(/\s+/).length;
+                        parts = [
+                            whitespaceParts[0],
+                            whitespaceParts[1],
+                            matchingEntity.name,
+                            ...whitespaceParts.slice(2 + entityWordCount),
+                        ];
+                    } else {
+                        parts = whitespaceParts;
+                    }
+                }
                 if (index === 0 && parts[0]?.toLowerCase() === 'type') {
                     return;
                 }
@@ -752,6 +781,8 @@ class App extends Component<{}, AppState> {
 
                 const [type, code, holdingEntity, unitsText, priceText, transactionDate, feesText, documentRef] = parts;
                 const normalizedType = type.toLowerCase();
+                const security = securities.find((entry) => entry.code.toLowerCase() === code.toLowerCase());
+                const entity = holdingEntities.find((entry) => entry.name.toLowerCase() === holdingEntity.toLowerCase());
                 const unitCount = Number(unitsText);
                 const unitPrice = Number(priceText);
                 const fees = feesText === undefined ? 0 : Number(feesText);
@@ -760,14 +791,22 @@ class App extends Component<{}, AppState> {
                     throw new Error(`Line ${index + 1} must start with buy or sell.`);
                 }
 
+                if (!security) {
+                    throw new Error(`Line ${index + 1} references an unknown security code: ${code}.`);
+                }
+
+                if (!entity) {
+                    throw new Error(`Line ${index + 1} references an unknown holding entity name: ${holdingEntity}.`);
+                }
+
                 if (!code || !holdingEntity || !transactionDate || !Number.isFinite(unitCount) || unitCount <= 0 || !Number.isFinite(unitPrice) || unitPrice <= 0 || !Number.isFinite(fees) || fees < 0) {
                     throw new Error(`Line ${index + 1} contains invalid transaction values.`);
                 }
 
                 if (normalizedType === 'buy') {
                     const result = this.dataManager?.addBuyTransaction({
-                        code,
-                        holdingEntity,
+                        code: security.code,
+                        holdingEntity: String(entity.id),
                         unitCount,
                         unitPrice,
                         fees,
@@ -781,7 +820,7 @@ class App extends Component<{}, AppState> {
                         throw new Error(`Line ${index + 1} could not be added. Check that the security exists.`);
                     }
                 } else {
-                    const availableLots = this.dataManager?.getSellLotAllocations(code, holdingEntity) ?? [];
+                    const availableLots = this.dataManager?.getSellLotAllocations(security.code, String(entity.id)) ?? [];
                     let remainingUnits = unitCount;
                     const lotAllocations = availableLots.map((lot) => {
                         const allocatedUnits = Math.min(remainingUnits, lot.availableUnits);
@@ -797,8 +836,8 @@ class App extends Component<{}, AppState> {
                     }
 
                     const result = this.dataManager?.addSellTransaction({
-                        code,
-                        holdingEntity,
+                        code: security.code,
+                        holdingEntity: String(entity.id),
                         unitPrice,
                         fees,
                         transactionDate,
