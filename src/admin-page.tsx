@@ -34,9 +34,15 @@ export function AdminPage({
 }: AdminPageProps): ComponentChildren {
     const [localSecurities, setLocalSecurities] = useState<ShareSecurity[]>(() => securities.map((security) => ({ ...security })));
     const [localHoldingEntities, setLocalHoldingEntities] = useState<HoldingEntity[]>(() => holdingEntities.map((entity) => ({ ...entity })));
+    const [dirtySecurityIds, setDirtySecurityIds] = useState<Set<string>>(() => new Set());
+    const [dirtyHoldingEntityIds, setDirtyHoldingEntityIds] = useState<Set<string>>(() => new Set());
+    const [newSecurityIds, setNewSecurityIds] = useState<Set<string>>(() => new Set());
+
+    const getRowKey = (id: EntityId): string => String(id);
 
     const updateSecurity = (id: EntityId, field: keyof ShareSecurity, value: string): void => {
         onChange();
+        setDirtySecurityIds((current) => new Set(current).add(getRowKey(id)));
         setLocalSecurities((current) => current.map((security) => {
             if (security.id !== id) {
                 return security;
@@ -51,6 +57,7 @@ export function AdminPage({
 
     const updateHoldingEntity = (id: EntityId, field: keyof HoldingEntity, value: string): void => {
         onChange();
+        setDirtyHoldingEntityIds((current) => new Set(current).add(getRowKey(id)));
         setLocalHoldingEntities((current) => current.map((entity) => {
             if (entity.id !== id) {
                 return entity;
@@ -65,10 +72,13 @@ export function AdminPage({
 
     const addSecurity = (): void => {
         onChange();
+        const id = getNextId();
+        setDirtySecurityIds((current) => new Set(current).add(getRowKey(id)));
+        setNewSecurityIds((current) => new Set(current).add(getRowKey(id)));
         setLocalSecurities((current) => [
             ...current,
             {
-                id: getNextId(),
+                id,
                 code: '',
                 market: 'ASX',
                 lastPrice: 0,
@@ -79,10 +89,12 @@ export function AdminPage({
 
     const addHoldingEntity = (): void => {
         onChange();
+        const id = getNextId();
+        setDirtyHoldingEntityIds((current) => new Set(current).add(getRowKey(id)));
         setLocalHoldingEntities((current) => [
             ...current,
             {
-                id: getNextId(),
+                id,
                 name: '',
                 market: 'ASX',
             },
@@ -91,11 +103,26 @@ export function AdminPage({
 
     const removeSecurity = (id: EntityId): void => {
         setLocalSecurities((current) => current.filter((security) => security.id !== id));
+        setDirtySecurityIds((current) => {
+            const next = new Set(current);
+            next.delete(getRowKey(id));
+            return next;
+        });
+        setNewSecurityIds((current) => {
+            const next = new Set(current);
+            next.delete(getRowKey(id));
+            return next;
+        });
         onRemoveSecurity(id);
     };
 
     const removeHoldingEntity = (id: EntityId): void => {
         setLocalHoldingEntities((current) => current.filter((entity) => entity.id !== id));
+        setDirtyHoldingEntityIds((current) => {
+            const next = new Set(current);
+            next.delete(getRowKey(id));
+            return next;
+        });
         onRemoveHoldingEntity(id);
     };
 
@@ -104,11 +131,26 @@ export function AdminPage({
             ...security,
             lastPrice: Number(security.lastPrice ?? 0),
         });
+        setDirtySecurityIds((current) => {
+            const next = new Set(current);
+            next.delete(getRowKey(security.id));
+            return next;
+        });
+        setNewSecurityIds((current) => {
+            const next = new Set(current);
+            next.delete(getRowKey(security.id));
+            return next;
+        });
     };
 
     const saveHoldingEntity = (entity: HoldingEntity): void => {
         onSaveHoldingEntity({
             ...entity,
+        });
+        setDirtyHoldingEntityIds((current) => {
+            const next = new Set(current);
+            next.delete(getRowKey(entity.id));
+            return next;
         });
     };
 
@@ -128,6 +170,7 @@ export function AdminPage({
             <main class="content-panel">
                 <div class="transaction-form-panel">
                     <h2>Registered securities</h2>
+                    <div class="table-scroll-container">
                     <table class="admin-table">
                         <thead>
                             <tr>
@@ -141,37 +184,42 @@ export function AdminPage({
                         <tbody>
                             {localSecurities.map((security) => (
                                 <tr key={security.id}>
-                                    <td>{security.id}</td>
-                                    <td>
+                                    <td data-label="ID">{security.id}</td>
+                                    <td data-label="Code">
                                         <input
                                             value={security.code}
                                             onInput={(event) => updateSecurity(security.id, 'code', (event.target as HTMLInputElement).value)}
                                         />
                                     </td>
-                                    <td>
+                                    <td data-label="Market">
                                         <input
                                             value={security.market}
                                             onInput={(event) => updateSecurity(security.id, 'market', (event.target as HTMLInputElement).value)}
                                         />
                                     </td>
-                                    <td>
+                                    <td data-label="Last price">
                                         <input
                                             type="number"
                                             min="0"
-                                            step="0.01"
+                                            step="any"
                                             value={security.lastPrice ?? 0}
                                             onInput={(event) => updateSecurity(security.id, 'lastPrice', (event.target as HTMLInputElement).value)}
                                         />
                                     </td>
-                                    <td class="table-actions">
-                                        <button class="primary-button" type="button" onClick={() => saveSecurity(security)}>Save row</button>
-                                        <button class="secondary-button" type="button" onClick={() => onViewSecurityPrices(security.code)}>Price records</button>
+                                    <td data-label="Actions" class="table-actions">
+                                        {dirtySecurityIds.has(getRowKey(security.id)) ? (
+                                            <button class="primary-button" type="button" onClick={() => saveSecurity(security)}>Save row</button>
+                                        ) : null}
+                                        {!newSecurityIds.has(getRowKey(security.id)) ? (
+                                            <button class="secondary-button" type="button" onClick={() => onViewSecurityPrices(security.code)}>Price records</button>
+                                        ) : null}
                                         <button class="secondary-button" type="button" onClick={() => removeSecurity(security.id)}>Remove</button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
+                    </div>
                     <div class="form-actions">
                         <button class="secondary-button" type="button" onClick={addSecurity}>Add security</button>
                     </div>
@@ -184,6 +232,7 @@ export function AdminPage({
 
                 <div class="transaction-form-panel">
                     <h2>Holding entities</h2>
+                    <div class="table-scroll-container">
                     <table class="admin-table">
                         <thead>
                             <tr>
@@ -196,27 +245,30 @@ export function AdminPage({
                         <tbody>
                             {localHoldingEntities.map((entity) => (
                                 <tr key={entity.id}>
-                                    <td>{entity.id}</td>
-                                    <td>
+                                    <td data-label="ID">{entity.id}</td>
+                                    <td data-label="Name">
                                         <input
                                             value={entity.name}
                                             onInput={(event) => updateHoldingEntity(entity.id, 'name', (event.target as HTMLInputElement).value)}
                                         />
                                     </td>
-                                    <td>
+                                    <td data-label="Market">
                                         <input
                                             value={entity.market}
                                             onInput={(event) => updateHoldingEntity(entity.id, 'market', (event.target as HTMLInputElement).value)}
                                         />
                                     </td>
-                                    <td class="table-actions">
-                                        <button class="primary-button" type="button" onClick={() => saveHoldingEntity(entity)}>Save row</button>
+                                    <td data-label="Actions" class="table-actions">
+                                        {dirtyHoldingEntityIds.has(getRowKey(entity.id)) ? (
+                                            <button class="primary-button" type="button" onClick={() => saveHoldingEntity(entity)}>Save row</button>
+                                        ) : null}
                                         <button class="secondary-button" type="button" onClick={() => removeHoldingEntity(entity.id)}>Remove</button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
+                    </div>
                     <div class="form-actions">
                         <button class="secondary-button" type="button" onClick={addHoldingEntity}>Add holding entity</button>
                     </div>

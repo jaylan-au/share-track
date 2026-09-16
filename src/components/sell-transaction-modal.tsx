@@ -1,5 +1,6 @@
 import { ComponentChildren } from 'preact';
 import { SellTransactionFormState } from '../types';
+import { formatCurrency } from '../model/formatters';
 
 interface SellTransactionModalProps {
     form: SellTransactionFormState;
@@ -38,7 +39,7 @@ export function SellTransactionModal({
     const unitPrice = Number(form.unitPrice);
     const fees = Number(form.fees || 0);
     const totalValue = Number.isFinite(unitCount) && Number.isFinite(unitPrice) && Number.isFinite(fees)
-        ? (unitCount * unitPrice) + fees
+        ? (unitCount * unitPrice) - fees
         : null;
 
     return (
@@ -85,7 +86,7 @@ export function SellTransactionModal({
                             <input
                                 type="number"
                                 min="0.01"
-                                step="0.01"
+                                step="any"
                                 value={form.unitPrice}
                                 onInput={(event) => onFieldChange('unitPrice', (event.target as HTMLInputElement).value)}
                             />
@@ -96,7 +97,7 @@ export function SellTransactionModal({
                             <input
                                 type="number"
                                 min="0"
-                                step="0.01"
+                                step="any"
                                 value={form.fees}
                                 onInput={(event) => onFieldChange('fees', (event.target as HTMLInputElement).value)}
                             />
@@ -113,7 +114,7 @@ export function SellTransactionModal({
 
                         <div class="field calculated-field">
                             <span>Total transaction value</span>
-                            <strong>{totalValue === null ? '-' : `$${totalValue.toFixed(2)}`}</strong>
+                            <strong>{totalValue === null ? '-' : formatCurrency(totalValue)}</strong>
                         </div>
 
                         <label class="field">

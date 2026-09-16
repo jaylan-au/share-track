@@ -1,4 +1,5 @@
 import { ShareLot, ShareLotTransaction, ShareTransaction } from './data-model';
+import { formatCurrency } from './formatters';
 
 export interface ActivityReportFilters {
     fromDate: string;
@@ -44,7 +45,7 @@ function number(value: unknown): number {
 }
 
 function money(value: number): string {
-    return `$${value.toFixed(2)}`;
+    return formatCurrency(value);
 }
 
 function cloneLots(lots: Map<string, LotState>): LotState[] {

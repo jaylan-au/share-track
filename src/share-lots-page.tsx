@@ -1,11 +1,13 @@
 import { ComponentChildren } from 'preact';
 import { useMemo, useState } from 'preact/hooks';
-import { ShareLot, ShareLotTransaction, ShareTransaction } from './model/data-model';
+import { HoldingEntity, ShareLot, ShareLotTransaction, ShareTransaction } from './model/data-model';
+import { currencyFormatter } from './model/formatters';
 
 interface ShareLotsPageProps {
     shareLots: ShareLot[];
     shareTransactions: ShareTransaction[];
     shareLotTransactions: ShareLotTransaction[];
+    holdingEntities: HoldingEntity[];
     hasUnsavedChanges: boolean;
     onDeleteShareLot: (shareLotId: string) => void;
     onDeleteSellTransaction: (sellTransactionId: string) => void;
@@ -18,6 +20,7 @@ type LotStatusFilter = 'all' | 'open' | 'closed';
 
 interface ShareLotRowModel {
     lot: ShareLot;
+    holdingEntityName: string;
     buyTransaction?: ShareTransaction;
     linkedTransactions: Array<{
         shareLotTransaction: ShareLotTransaction;
@@ -25,13 +28,6 @@ interface ShareLotRowModel {
     }>;
     buyDate: number;
 }
-
-const currencyFormatter = new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-});
 
 const dateFormatter = new Intl.DateTimeFormat('en-AU', {
     dateStyle: 'short',
@@ -56,7 +52,7 @@ function exportShareLotsCsv(rows: ShareLotRowModel[]): void {
         return [
             formatDate(buyTransaction?.transactionTimestamp),
             row.lot.code,
-            row.lot.holdingEntity,
+            row.holdingEntityName,
             String(row.lot.unitCount ?? 0),
             String(row.lot.unitOriginalCost ?? 0),
             String(row.lot.unitCurrentCost ?? 0),
@@ -105,7 +101,7 @@ function getSortValue(row: ShareLotRowModel, column: SortColumn): string | numbe
         case 'code':
             return row.lot.code;
         case 'holdingEntity':
-            return row.lot.holdingEntity;
+            return row.holdingEntityName;
         case 'unitCount':
             return Number(row.lot.unitCount ?? 0);
         case 'unitOriginalCost':
@@ -119,7 +115,7 @@ function getSortValue(row: ShareLotRowModel, column: SortColumn): string | numbe
     }
 }
 
-export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactions, hasUnsavedChanges, onDeleteShareLot, onDeleteSellTransaction, onBack }: ShareLotsPageProps): ComponentChildren {
+export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactions, holdingEntities, hasUnsavedChanges, onDeleteShareLot, onDeleteSellTransaction, onBack }: ShareLotsPageProps): ComponentChildren {
     const [sortColumn, setSortColumn] = useState<SortColumn>('buyDate');
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
     const [expandedLotIds, setExpandedLotIds] = useState<string[]>([]);
@@ -131,6 +127,7 @@ export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactio
 
     const rows = useMemo<ShareLotRowModel[]>(() => {
         const transactionMap = new Map(shareTransactions.map((transaction) => [transaction.id, transaction]));
+        const holdingEntityNames = new Map(holdingEntities.map((entity) => [String(entity.id), entity.name]));
 
         return shareLots.map((lot) => {
             const linkedTransactions = shareLotTransactions
@@ -145,19 +142,20 @@ export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactio
 
             return {
                 lot,
+                holdingEntityName: holdingEntityNames.get(String(lot.holdingEntity)) ?? String(lot.holdingEntity),
                 buyTransaction,
                 linkedTransactions,
                 buyDate: buyTransaction?.transactionTimestamp ?? 0,
             };
         });
-    }, [shareLots, shareLotTransactions, shareTransactions]);
+    }, [shareLots, shareLotTransactions, shareTransactions, holdingEntities]);
 
     const sortedRows = useMemo(() => {
         const filteredRows = rows.filter((row) => {
             const buyDate = formatFilterDate(row.buyDate);
             const matchesFromDate = !fromDate || (buyDate && buyDate >= fromDate);
             const matchesToDate = !toDate || (buyDate && buyDate <= toDate);
-            const matchesEntity = !holdingEntityFilter || row.lot.holdingEntity === holdingEntityFilter;
+            const matchesEntity = !holdingEntityFilter || String(row.lot.holdingEntity) === holdingEntityFilter;
             const matchesCode = !codeFilter || row.lot.code === codeFilter;
             const isOpen = row.lot.isOpen !== false;
             const matchesStatus = statusFilter === 'all'
@@ -179,8 +177,8 @@ export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactio
         });
     }, [rows, fromDate, toDate, holdingEntityFilter, codeFilter, statusFilter, sortColumn, sortDirection]);
 
-    const holdingEntities = useMemo(() => {
-        return Array.from(new Set(rows.map((row) => row.lot.holdingEntity))).sort((left, right) => left.localeCompare(right));
+    const holdingEntityOptions = useMemo(() => {
+        return Array.from(new Map(rows.map((row) => [String(row.lot.holdingEntity), row.holdingEntityName]))).sort((left, right) => left[1].localeCompare(right[1]));
     }, [rows]);
 
     const codes = useMemo(() => {
@@ -256,7 +254,7 @@ export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactio
                             <span>Holding entity</span>
                             <select value={holdingEntityFilter} onInput={(event) => setHoldingEntityFilter((event.target as HTMLSelectElement).value)}>
                                 <option value="">All holding entities</option>
-                                {holdingEntities.map((entity) => <option value={entity} key={entity}>{entity}</option>)}
+                                {holdingEntityOptions.map(([id, name]) => <option value={id} key={id}>{name}</option>)}
                             </select>
                         </label>
                         <label class="field">
@@ -330,7 +328,7 @@ export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactio
                                         <tr key={row.lot.id}>
                                             <td>{formatDate(buyTransaction?.transactionTimestamp)}</td>
                                             <td>{row.lot.code}</td>
-                                            <td>{row.lot.holdingEntity}</td>
+                                            <td>{row.holdingEntityName}</td>
                                             <td>{row.lot.unitCount}</td>
                                             <td>{currencyFormatter.format(Number(row.lot.unitOriginalCost ?? 0))}</td>
                                             <td>{currencyFormatter.format(Number(row.lot.unitCurrentCost ?? 0))}</td>

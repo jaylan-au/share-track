@@ -89,11 +89,14 @@ export interface EtfTaxStatementTransactionInput {
 
 export type PortfolioGroupBy = 'security' | 'security-entity';
 export type AppPage = 'portfolio' | 'admin' | 'share-lots' | 'dividends' | 'activity-report' | 'price-records';
+export type FlashMessageType = 'success' | 'error';
 
 export interface AppState {
     isLoading: boolean;
     portfolioRows: PortfolioRow[];
     error: string | null;
+    flashMessage: string | null;
+    flashMessageType: FlashMessageType;
     hasUnsavedChanges: boolean;
     securities: ShareSecurity[];
     holdingEntities: HoldingEntity[];

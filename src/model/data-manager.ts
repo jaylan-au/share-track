@@ -8,6 +8,7 @@ import {
 } from './data-model';
 import { AutoIncrementIdGen } from './auto-increment-id-gen';
 import { PortfolioGroupBy, PortfolioRow, SellLotAllocation } from '../types';
+import { formatCurrency } from './formatters';
 
 export class DataManagerTable {
     entityName: string;
@@ -303,7 +304,7 @@ export class DataManager {
             fees: 0,
             recordTimestamp: transactionTimestamp,
             transactionTimestamp,
-            documentRef: input.documentRef?.trim() || `doc-${transactionId}`,
+            documentRef: input.documentRef?.trim() || '',
             notes: input.notes ?? '',
         });
 
@@ -354,7 +355,7 @@ export class DataManager {
             fees: 0,
             recordTimestamp: transactionTimestamp,
             transactionTimestamp,
-            documentRef: input.documentRef?.trim() || `doc-${transactionId}`,
+            documentRef: input.documentRef?.trim() || '',
             notes: input.notes ?? '',
         });
 
@@ -778,7 +779,7 @@ export class DataManager {
                 shareLotId: lot.id,
                 availableUnits: Number(lot.unitCount),
                 unitCount: '0',
-                label: `${buyTransactionDate || 'Buy date unavailable'}${typeof buyTransactionPrice === 'number' ? ` @ $${buyTransactionPrice.toFixed(2)}` : ''} · ${Number(lot.unitCount)} units available`,
+                label: `${buyTransactionDate || 'Buy date unavailable'}${typeof buyTransactionPrice === 'number' ? ` @ ${formatCurrency(buyTransactionPrice)}` : ''} · ${Number(lot.unitCount)} units available`,
                 buyTransactionDate,
                 buyTransactionPrice,
             };
@@ -865,7 +866,7 @@ export class DataManager {
             fees: input.fees ?? 0,
             recordTimestamp: transactionTimestamp,
             transactionTimestamp,
-            documentRef: input.documentRef?.trim() || `doc-${transactionId}`,
+            documentRef: input.documentRef?.trim() || '',
             notes: input.notes ?? '',
         };
 
@@ -986,7 +987,7 @@ export class DataManager {
             fees: input.fees ?? 0,
             recordTimestamp: transactionTimestamp,
             transactionTimestamp,
-            documentRef: input.documentRef?.trim() || `doc-${transactionId}`,
+            documentRef: input.documentRef?.trim() || '',
             notes: input.notes ?? '',
         };
 
@@ -1003,6 +1004,9 @@ export class DataManager {
                 updatedLots.push(lot);
             } else {
                 const remainingUnits = Number(lot.unitCount) - soldUnits;
+                const originalLotTransactions = shareLotTransactionTable
+                    .getAll()
+                    .filter((link) => String(link.shareLot) === String(lot.id));
                 lot.isOpen = false;
                 lot.unitCount = soldUnits;
                 updatedLots.push(lot);
@@ -1019,6 +1023,14 @@ export class DataManager {
                 };
                 shareLotTable.add(remainderLot);
                 createdLots.push(remainderLot);
+
+                for (const originalLotTransaction of originalLotTransactions) {
+                    shareLotTransactionTable.add({
+                        ...originalLotTransaction,
+                        id: this.getNextId(),
+                        shareLot: remainderLot.id,
+                    });
+                }
             }
 
             const shareLotTransaction = {

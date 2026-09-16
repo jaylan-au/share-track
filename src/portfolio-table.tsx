@@ -1,4 +1,5 @@
 import { Component } from 'preact';
+import { currencyFormatter } from './model/formatters';
 
 interface PortFolioTableRowProps {
     portfolioRow: {
@@ -19,13 +20,6 @@ interface PortFolioTableRowProps {
     groupBy: 'security' | 'security-entity';
 }
 
-const currencyFormatter = new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-});
-
 const percentageFormatter = new Intl.NumberFormat('en-AU', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -40,22 +34,22 @@ class PortFolioTableRow extends Component<PortFolioTableRowProps> {
 
         return (
             <tr id={portfolioRow.id}>
-                {showEntityColumn ? <td>{portfolioRow.entity}</td> : null}
-                <td>{portfolioRow.code}</td>
-                <td>{portfolioRow.unitCount}</td>
-                <td>
+                {showEntityColumn ? <td class="portfolio-card-identity" data-label="Entity">{portfolioRow.entity}</td> : null}
+                <td class="portfolio-card-identity" data-label="Code">{portfolioRow.code}</td>
+                <td class="portfolio-card-units" data-label="Unit count">{portfolioRow.unitCount}</td>
+                <td class="portfolio-card-detail" data-label="Unit cost average">
                     <div class="metric-value-group">
                         <span>{currencyFormatter.format(portfolioRow.unitCostAverage)}</span>
                         <small>({currencyFormatter.format(portfolioRow.unitOriginalCostAverage)})</small>
                     </div>
                 </td>
-                <td>{currencyFormatter.format(portfolioRow.currentPrice)}</td>
-                <td>{currencyFormatter.format(portfolioRow.totalCost)}</td>
-                <td>{currencyFormatter.format(portfolioRow.currentValue)}</td>
-                <td class={profitClass}>
+                <td class="portfolio-card-detail" data-label="Current price">{currencyFormatter.format(portfolioRow.currentPrice)}</td>
+                <td class="portfolio-card-detail" data-label="Total cost">{currencyFormatter.format(portfolioRow.totalCost)}</td>
+                <td class="portfolio-card-detail" data-label="Current value">{currencyFormatter.format(portfolioRow.currentValue)}</td>
+                <td class={`portfolio-card-critical ${profitClass}`} data-label="Profit %">
                     {`${percentageFormatter.format(portfolioRow.profitPercent)}%`}
                 </td>
-                <td class={profitClass}>
+                <td class={`portfolio-card-critical ${profitClass}`} data-label="Simple gain/loss">
                     {currencyFormatter.format(portfolioRow.profitPosition)}
                 </td>
             </tr>
@@ -75,7 +69,7 @@ export function PortFolioTable(props: any) {
         : 0;
 
     return (
-        <div class="portfolio-table">
+        <div class="portfolio-table table-scroll-container">
             <table>
                 <thead>
                     <tr>

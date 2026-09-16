@@ -1,6 +1,7 @@
 import { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { ShareSecurityPriceRecord } from './model/data-model';
+import { formatCurrency } from './model/formatters';
 
 interface PriceRecordDeleteFormProps {
     scopeLabel: string;
@@ -105,7 +106,7 @@ export function PriceRecordsPage({ code, records, hasUnsavedChanges, scopeLabel,
                             {records.map((record) => (
                                 <tr key={String(record.id)}>
                                     <td>{formatTimestamp(record.timeStamp)}</td>
-                                    <td>{Number(record.price).toFixed(2)}</td>
+                                    <td>{formatCurrency(Number(record.price))}</td>
                                     <td>{record.preserve ? 'Yes' : 'No'}</td>
                                     <td>{record.id}</td>
                                 </tr>

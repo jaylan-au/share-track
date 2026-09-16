@@ -1,5 +1,6 @@
 import { ComponentChildren, JSX } from 'preact';
 import { BuyTransactionFormState } from '../types';
+import { formatCurrency } from '../model/formatters';
 
 interface BuyTransactionModalProps {
     form: BuyTransactionFormState;
@@ -98,7 +99,7 @@ export function BuyTransactionModal({
                             <input
                                 type="number"
                                 min="0.01"
-                                step="0.01"
+                                step="any"
                                 value={form.unitPrice}
                                 onInput={(event) => onFieldChange('unitPrice', (event.target as HTMLInputElement).value)}
                             />
@@ -109,7 +110,7 @@ export function BuyTransactionModal({
                             <input
                                 type="number"
                                 min="0"
-                                step="0.01"
+                                step="any"
                                 value={form.fees}
                                 onInput={(event) => onFieldChange('fees', (event.target as HTMLInputElement).value)}
                             />
@@ -126,7 +127,7 @@ export function BuyTransactionModal({
 
                         <div class="field calculated-field">
                             <span>Total transaction value</span>
-                            <strong>{totalValue === null ? '-' : `$${totalValue.toFixed(2)}`}</strong>
+                            <strong>{totalValue === null ? '-' : formatCurrency(totalValue)}</strong>
                         </div>
 
                         <label class="field">

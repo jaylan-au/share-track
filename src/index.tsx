@@ -24,17 +24,21 @@ import {
     PortfolioRow,
     SellLotAllocation,
     SellTransactionFormState,
+    FlashMessageType,
 } from './types';
 
 type ModalKey = 'isBuyModalOpen' | 'isSellModalOpen' | 'isDataModalOpen' | 'isBulkPriceModalOpen' | 'isBulkTransactionModalOpen';
 
 class App extends Component<{}, AppState> {
     private dataManager: DataManager | null = null;
+    private flashTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
     state: AppState = {
         isLoading: true,
         portfolioRows: [],
         error: null,
+        flashMessage: null,
+        flashMessageType: 'success',
         hasUnsavedChanges: false,
         securities: [],
         holdingEntities: [],
@@ -114,6 +118,18 @@ class App extends Component<{}, AppState> {
             error: null,
             [modal]: isOpen,
         }));
+    }
+
+    private showFlashMessage(message: string, type: FlashMessageType): void {
+        if (this.flashTimeoutId) {
+            clearTimeout(this.flashTimeoutId);
+        }
+
+        this.setState({ flashMessage: message, flashMessageType: type });
+        this.flashTimeoutId = setTimeout(() => {
+            this.setState({ flashMessage: null });
+            this.flashTimeoutId = null;
+        }, 7000);
     }
 
     private getUpdatedSecurities(): ShareSecurity[] {
@@ -723,7 +739,9 @@ class App extends Component<{}, AppState> {
         event.preventDefault();
 
         if (!this.dataManager) {
-            this.setState({ error: 'Portfolio data is not loaded yet.' });
+            const message = 'Portfolio data is not loaded yet.';
+            this.setState({ error: message });
+            this.showFlashMessage(message, 'error');
             return;
         }
 
@@ -733,14 +751,27 @@ class App extends Component<{}, AppState> {
             .filter(Boolean);
 
         if (lines.length === 0) {
-            this.setState({ error: 'Please provide at least one transaction.' });
+            const message = 'Please provide at least one transaction.';
+            this.setState({ error: message });
+            this.showFlashMessage(message, 'error');
             return;
         }
 
+        let importedCount = 0;
+
         try {
-            let processedCount = 0;
             const securities = this.dataManager.getAll<ShareSecurity>('ShareSecurity');
             const holdingEntities = this.dataManager.getAll<HoldingEntity>('HoldingEntity');
+            const parsedRows: Array<{
+                type: 'buy' | 'sell';
+                security: ShareSecurity;
+                entity: HoldingEntity;
+                unitCount: number;
+                unitPrice: number;
+                fees: number;
+                transactionDate: string;
+                documentRef?: string;
+            }> = [];
 
             lines.forEach((line, index) => {
                 let parts: string[];
@@ -803,25 +834,46 @@ class App extends Component<{}, AppState> {
                     throw new Error(`Line ${index + 1} contains invalid transaction values.`);
                 }
 
-                if (normalizedType === 'buy') {
+                if (!Number.isFinite(Date.parse(transactionDate))) {
+                    throw new Error(`Line ${index + 1} contains an invalid transaction date.`);
+                }
+
+                parsedRows.push({
+                    type: normalizedType,
+                    security,
+                    entity,
+                    unitCount,
+                    unitPrice,
+                    fees,
+                    transactionDate,
+                    documentRef,
+                });
+            });
+
+            if (parsedRows.length === 0) {
+                throw new Error('Please provide at least one transaction row.');
+            }
+
+            parsedRows.forEach((row, index) => {
+                if (row.type === 'buy') {
                     const result = this.dataManager?.addBuyTransaction({
-                        code: security.code,
-                        holdingEntity: String(entity.id),
-                        unitCount,
-                        unitPrice,
-                        fees,
-                        transactionDate,
-                        documentRef,
+                        code: row.security.code,
+                        holdingEntity: String(row.entity.id),
+                        unitCount: row.unitCount,
+                        unitPrice: row.unitPrice,
+                        fees: row.fees,
+                        transactionDate: row.transactionDate,
+                        documentRef: row.documentRef,
                         notes: '',
                         newSecurity: null,
                     });
 
                     if (!result) {
-                        throw new Error(`Line ${index + 1} could not be added. Check that the security exists.`);
+                        throw new Error(`Row ${index + 1} could not be added. Check that the security exists.`);
                     }
                 } else {
-                    const availableLots = this.dataManager?.getSellLotAllocations(security.code, String(entity.id)) ?? [];
-                    let remainingUnits = unitCount;
+                    const availableLots = this.dataManager?.getSellLotAllocations(row.security.code, String(row.entity.id)) ?? [];
+                    let remainingUnits = row.unitCount;
                     const lotAllocations = availableLots.map((lot) => {
                         const allocatedUnits = Math.min(remainingUnits, lot.availableUnits);
                         remainingUnits -= allocatedUnits;
@@ -832,31 +884,27 @@ class App extends Component<{}, AppState> {
                     }).filter((allocation) => allocation.unitCount > 0);
 
                     if (remainingUnits > 0) {
-                        throw new Error(`Line ${index + 1} cannot sell ${unitCount} units; insufficient open lots.`);
+                        throw new Error(`Row ${index + 1} cannot sell ${row.unitCount} units; insufficient open lots.`);
                     }
 
                     const result = this.dataManager?.addSellTransaction({
-                        code: security.code,
-                        holdingEntity: String(entity.id),
-                        unitPrice,
-                        fees,
-                        transactionDate,
-                        documentRef,
+                        code: row.security.code,
+                        holdingEntity: String(row.entity.id),
+                        unitPrice: row.unitPrice,
+                        fees: row.fees,
+                        transactionDate: row.transactionDate,
+                        documentRef: row.documentRef,
                         notes: '',
                         lotAllocations,
                     });
 
                     if (!result) {
-                        throw new Error(`Line ${index + 1} could not be added.`);
+                        throw new Error(`Row ${index + 1} could not be added.`);
                     }
                 }
 
-                processedCount += 1;
+                importedCount += 1;
             });
-
-            if (processedCount === 0) {
-                throw new Error('Please provide at least one transaction row.');
-            }
 
             const updatedSecurities = this.getUpdatedSecurities();
             this.refreshPortfolioAfterMutation({
@@ -866,10 +914,16 @@ class App extends Component<{}, AppState> {
                 bulkTransactionForm: this.createEmptyBulkTransactionFormState(),
                 isBulkTransactionModalOpen: false,
             });
+
+            this.showFlashMessage(
+                `Imported ${importedCount} transaction${importedCount === 1 ? '' : 's'} successfully.`,
+                'success',
+            );
         } catch (error) {
-            this.setState({
-                error: error instanceof Error ? error.message : 'Unable to load transactions.',
-            });
+            const reason = error instanceof Error ? error.message : 'Unable to load transactions.';
+            const message = `Import failed after ${importedCount} row${importedCount === 1 ? '' : 's'} imported: ${reason}`;
+            this.setState({ error: reason });
+            this.showFlashMessage(message, 'error');
         }
     };
 
@@ -962,7 +1016,7 @@ class App extends Component<{}, AppState> {
     };
 
     render() {
-        const { isLoading, portfolioRows, error, hasUnsavedChanges, securities, holdingEntities, form, sellForm, bulkPriceForm, bulkTransactionForm, isBuyModalOpen, isSellModalOpen, isDataModalOpen, isBulkPriceModalOpen, isBulkTransactionModalOpen, portfolioGroupBy, currentPage, selectedSecurityCode } = this.state;
+        const { isLoading, portfolioRows, error, flashMessage, flashMessageType, hasUnsavedChanges, securities, holdingEntities, form, sellForm, bulkPriceForm, bulkTransactionForm, isBuyModalOpen, isSellModalOpen, isDataModalOpen, isBulkPriceModalOpen, isBulkTransactionModalOpen, portfolioGroupBy, currentPage, selectedSecurityCode } = this.state;
         const activeSellForm = this.syncSellLotAllocations(sellForm, this.dataManager, sellForm.lotAllocations);
 
         if (currentPage === 'admin') {
@@ -990,6 +1044,7 @@ class App extends Component<{}, AppState> {
                     shareLots={this.dataManager?.getAll('ShareLot') ?? []}
                     shareTransactions={this.dataManager?.getAll('ShareTransaction') ?? []}
                     shareLotTransactions={this.dataManager?.getAll('ShareLotTransaction') ?? []}
+                    holdingEntities={holdingEntities}
                     onDeleteShareLot={this.handleDeleteShareLot}
                     onDeleteSellTransaction={this.handleDeleteSellTransaction}
                     onBack={() => this.setState({ currentPage: 'portfolio' })}
@@ -1051,6 +1106,11 @@ class App extends Component<{}, AppState> {
 
         return (
             <div class="app-shell">
+                {flashMessage ? (
+                    <div class={`flash-message flash-message-${flashMessageType}`} role="status">
+                        {flashMessage}
+                    </div>
+                ) : null}
                 <header class="app-header">
                     <div>
                         <p class="eyebrow">ShareTrack</p>
@@ -1058,19 +1118,11 @@ class App extends Component<{}, AppState> {
                         {hasUnsavedChanges ? <span class="unsaved-changes">Unsaved changes</span> : null}
                     </div>
                     <div class="header-actions">
-                        <label class="grouping-select">
-                            <span>Group by</span>
-                            <select
-                                value={portfolioGroupBy}
-                                onInput={(event) => this.updatePortfolioGroupBy((event.target as HTMLSelectElement).value as PortfolioGroupBy)}
-                            >
-                                <option value="security">Security code only</option>
-                                <option value="security-entity">Security code and entity</option>
-                            </select>
-                        </label>
-
                         <details class="header-dropdown">
-                            <summary class="secondary-button">Actions</summary>
+                            <summary class="secondary-button actions-trigger" aria-label="Actions">
+                                <span class="hamburger-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+                                <span class="actions-label">Actions</span>
+                            </summary>
                             <div class="dropdown-menu">
                                 <button
                                     class="secondary-button dropdown-button"
@@ -1151,6 +1203,19 @@ class App extends Component<{}, AppState> {
                     {error ? (
                         <div class="error-message">{error}</div>
                     ) : null}
+
+                    <div class="portfolio-toolbar">
+                        <label class="grouping-select">
+                            <span>Group by</span>
+                            <select
+                                value={portfolioGroupBy}
+                                onInput={(event) => this.updatePortfolioGroupBy((event.target as HTMLSelectElement).value as PortfolioGroupBy)}
+                            >
+                                <option value="security">Security code only</option>
+                                <option value="security-entity">Security code and entity</option>
+                            </select>
+                        </label>
+                    </div>
 
                     {isLoading ? (
                         <div class="loading-state">Loading portfolio data...</div>

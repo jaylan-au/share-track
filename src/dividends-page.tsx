@@ -2,6 +2,7 @@ import { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { HoldingEntity, ShareLot, ShareLotTransaction, ShareSecurity, ShareTransaction } from './model/data-model';
 import { DividendTransactionInput, EtfTaxStatementTransactionInput } from './types';
+import { currencyFormatter } from './model/formatters';
 
 interface DividendsPageProps {
     dividends: ShareTransaction[];
@@ -68,13 +69,6 @@ interface EtfTaxStatementFinalizationPlan {
     unitCostDelta: number;
     unitCurrentCostAdjustment: number;
 }
-
-const currencyFormatter = new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-});
 
 const dateFormatter = new Intl.DateTimeFormat('en-AU', {
     dateStyle: 'short',
@@ -439,7 +433,7 @@ export function DividendsPage({
                                     <input
                                         type="number"
                                         min="0"
-                                        step="0.01"
+                                        step="any"
                                         value={dividendForm.dividendPerShare}
                                         onInput={(event) => updateDividendFormField('dividendPerShare', (event.target as HTMLInputElement).value)}
                                     />
@@ -461,7 +455,7 @@ export function DividendsPage({
                                     <input
                                         type="number"
                                         min="0"
-                                        step="0.01"
+                                        step="any"
                                         value={dividendForm.totalFrankedAmount}
                                         onInput={(event) => updateDividendFormField('totalFrankedAmount', (event.target as HTMLInputElement).value)}
                                     />
@@ -472,7 +466,7 @@ export function DividendsPage({
                                     <input
                                         type="number"
                                         min="0"
-                                        step="0.01"
+                                        step="any"
                                         value={dividendForm.totalUnfrankedAmount}
                                         onInput={(event) => updateDividendFormField('totalUnfrankedAmount', (event.target as HTMLInputElement).value)}
                                     />
@@ -501,7 +495,7 @@ export function DividendsPage({
                                     <input
                                         type="number"
                                         min="0"
-                                        step="0.01"
+                                        step="any"
                                         value={dividendForm.totalFrankingCredit}
                                         onInput={(event) => updateDividendFormField('totalFrankingCredit', (event.target as HTMLInputElement).value)}
                                     />
@@ -577,7 +571,7 @@ export function DividendsPage({
                                     <input
                                         type="number"
                                         min="-99999999"
-                                        step="0.01"
+                                        step="any"
                                         value={etfTaxStatementForm.unitCostDelta}
                                         onInput={(event) => updateEtfTaxStatementFormField('unitCostDelta', (event.target as HTMLInputElement).value)}
                                     />

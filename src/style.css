@@ -30,6 +30,31 @@ body {
     width: 100%;
 }
 
+.flash-message {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1100;
+    max-width: min(520px, calc(100vw - 40px));
+    padding: 14px 18px;
+    border: 1px solid;
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
+    font-weight: 700;
+}
+
+.flash-message-success {
+    color: #166534;
+    background: #f0fdf4;
+    border-color: #86efac;
+}
+
+.flash-message-error {
+    color: #991b1b;
+    background: #fef2f2;
+    border-color: #fca5a5;
+}
+
 .app-shell {
     max-width: 1200px;
     margin: 0 auto;
@@ -42,6 +67,12 @@ body {
     align-items: center;
     margin-bottom: 20px;
     gap: 16px;
+}
+
+.portfolio-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 16px;
 }
 
 .eyebrow {
@@ -90,6 +121,28 @@ h1 {
     display: none;
 }
 
+.actions-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hamburger-icon {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    width: 16px;
+}
+
+.hamburger-icon span {
+    display: block;
+    width: 16px;
+    height: 2px;
+    border-radius: 2px;
+    background: currentColor;
+}
+
 .dropdown-menu {
     position: absolute;
     right: 0;
@@ -127,6 +180,8 @@ h1 {
 
 .share-lots-table-wrapper {
     overflow-x: auto;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
 }
 
 .share-lots-filters {
@@ -260,14 +315,6 @@ h1 {
 }
 
 .grouping-select {
-
-    .unsaved-changes {
-        display: inline-block;
-        margin-top: 0.35rem;
-        color: #b45309;
-        font-size: 0.85rem;
-        font-weight: 700;
-    }
     display: flex;
     align-items: center;
     gap: 8px;
@@ -621,13 +668,22 @@ h1 {
 
 .portfolio-table {
     width: 100%;
+}
+
+.table-scroll-container {
+    width: 100%;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 table {
     width: 100%;
     border-collapse: collapse;
     min-width: 760px;
+}
+
+.admin-table {
+    min-width: 680px;
 }
 
 th, td {
@@ -685,5 +741,207 @@ tbody tr:hover {
     background: #fef2f2;
     border: 1px solid #fecaca;
     border-radius: 12px;
+}
+
+@media (max-width: 640px) {
+    .app-shell {
+        padding: 20px 12px 32px;
+    }
+
+    .app-header {
+        align-items: flex-start;
+    }
+
+    .header-actions {
+        margin-left: auto;
+    }
+
+    .header-dropdown summary.actions-trigger {
+        width: 42px;
+        height: 42px;
+        padding: 0;
+        justify-content: center;
+    }
+
+    .actions-label {
+        display: none;
+    }
+
+    .hamburger-icon {
+        display: inline-flex;
+    }
+
+    .dropdown-menu {
+        right: 0;
+        min-width: min(240px, calc(100vw - 24px));
+    }
+
+    .portfolio-toolbar {
+        justify-content: stretch;
+    }
+
+    .grouping-select {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .grouping-select select {
+        min-width: 0;
+        max-width: 65%;
+    }
+
+    .content-panel {
+        padding: 14px;
+        border-radius: 14px;
+    }
+
+    .portfolio-table {
+        overflow: visible;
+    }
+
+    .portfolio-table table,
+    .admin-table {
+        min-width: 0;
+    }
+
+    .portfolio-table thead,
+    .portfolio-table tfoot {
+        display: none;
+    }
+
+    .portfolio-table tbody {
+        display: grid;
+        gap: 12px;
+    }
+
+    .portfolio-table tbody tr {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #fff;
+    }
+
+    .portfolio-table tbody td {
+        display: flex;
+        min-width: 0;
+        width: 100%;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 2px;
+        padding: 4px 0;
+        border: 0;
+        text-align: left;
+        overflow-wrap: anywhere;
+    }
+
+    .portfolio-table tbody td::before {
+        content: attr(data-label);
+        color: #64748b;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-align: left;
+        text-transform: uppercase;
+    }
+
+    .portfolio-table tbody .portfolio-card-identity,
+    .portfolio-table tbody .portfolio-card-units,
+    .portfolio-table tbody .portfolio-card-critical {
+        font-size: 1rem;
+        font-weight: 700;
+    }
+
+    .portfolio-table tbody .portfolio-card-identity {
+        order: initial;
+    }
+
+    .portfolio-table tbody .portfolio-card-units {
+        order: initial;
+    }
+
+    .portfolio-table tbody .portfolio-card-detail {
+        order: initial;
+        color: #475569;
+        font-size: 0.82rem;
+    }
+
+    .portfolio-table tbody .portfolio-card-critical {
+        order: initial;
+    }
+
+    .portfolio-table tbody .portfolio-card-critical::before {
+        font-size: 0.7rem;
+    }
+
+    .portfolio-table .metric-value-group {
+        align-items: flex-end;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .admin-table {
+        display: block;
+    }
+
+    .admin-table thead {
+        display: none;
+    }
+
+    .admin-table tbody {
+        display: grid;
+        gap: 12px;
+    }
+
+    .admin-table tbody tr {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #fff;
+    }
+
+    .admin-table tbody td {
+        display: grid;
+        grid-template-columns: 100px minmax(0, 1fr);
+        gap: 12px;
+        align-items: center;
+        padding: 4px 0;
+        border: 0;
+    }
+
+    .admin-table tbody td::before {
+        content: attr(data-label);
+        color: #64748b;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+    }
+
+    .admin-table tbody td.table-actions {
+        display: flex;
+        flex-wrap: wrap;
+        padding-top: 8px;
+    }
+
+    .admin-table tbody td.table-actions::before {
+        width: 100%;
+    }
+
+    .table-scroll-container {
+        overflow-x: auto;
+        max-width: 100%;
+    }
+
+    .table-scroll-container table {
+        min-width: 680px;
+    }
 }
 
