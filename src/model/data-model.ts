@@ -19,7 +19,14 @@ export class ShareSecurityPriceRecord extends ShareTrackDataObject  {
     code!: string;
     price!: number;
     timeStamp!: number;
-    preserve: boolean = false;
+    preserve!: boolean;
+
+    // note: defaults are applied here (not via field initializers) so they don't clobber
+    // values already assigned from `init` by the base constructor's Object.assign call.
+    constructor(init?: Partial<ShareSecurityPriceRecord>) {
+        super(init);
+        this.preserve ??= false;
+    }
 }
 
 
@@ -30,8 +37,13 @@ export class ShareLot extends ShareTrackDataObject  {
     unitCount!: number;
     unitOriginalCost!: number;
     unitCurrentCost!: number;
-    isOpen?: boolean = true;
+    isOpen?: boolean;
     buyTransactionId!: EntityId;
+
+    constructor(init?: Partial<ShareLot>) {
+        super(init);
+        this.isOpen ??= true;
+    }
 }
 
 export class ShareTransaction extends ShareTrackDataObject  {
@@ -50,12 +62,19 @@ export class ShareTransaction extends ShareTrackDataObject  {
     totalFrankingCredit?: number;
     originalCurrency?: string;
     cutOffDate?: number;
-    finalized: boolean = false;
-    fees?: number = 0;
+    finalized!: boolean;
+    fees?: number;
     recordTimestamp!: number;
     transactionTimestamp!: number;
     documentRef!: string;
-    notes?: string = '';
+    notes?: string;
+
+    constructor(init?: Partial<ShareTransaction>) {
+        super(init);
+        this.finalized ??= false;
+        this.fees ??= 0;
+        this.notes ??= '';
+    }
 }   
    
 
