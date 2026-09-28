@@ -1,15 +1,18 @@
-# `create-preact`
+# Share Track
 
-<h2 align="center">
-  <img height="256" width="256" src="./src/assets/preact.svg">
-</h2>
+Share Track is an npm-workspaces monorepo containing the frontend and backend.
 
-<h3 align="center">Get started using Preact and Vite!</h3>
+## Workspaces
 
-## Getting Started
+- `web-app` contains the Preact and Vite frontend.
+- `backend-server` contains the Express API server.
 
--   `npm run dev` - Starts a dev server at http://localhost:5173/
+## Development
 
--   `npm run build` - Builds for production, emitting to `dist/`
+Run `npm install` at the repository root, then start either workspace:
 
--   `npm run preview` - Starts a server at http://localhost:4173/ to test production build locally
+- `npm run dev` starts the frontend at http://localhost:5173/.
+- `npm run dev:server` starts the Express server on port 3000.
+- `npm run build` builds the frontend for production.
+
+The backend currently exposes `GET /health`, which returns `{ "status": "ok" }`.

@@ -1,21 +1,15 @@
 {
+	"name": "share-track",
 	"private": true,
-	"type": "module",
-	"homepage": "https://github.com/jaylan-au/share-track",
+	"workspaces": [
+		"web-app",
+		"backend-server"
+	],
 	"scripts": {
-		"dev": "vite",
-		"build": "vite build",
-		"preview": "vite preview",
-		"predeploy": "npm run build",
-  		"deploy": "gh-pages -d dist"
-	},
-	"dependencies": {
-		"preact": "^10.25.3"
-	},
-	"devDependencies": {
-		"@preact/preset-vite": "^2.9.3",
-		"gh-pages": "^6.3.0",
-		"typescript": "^7.0.2",
-		"vite": "^6.0.4"
+		"dev": "npm run dev --workspace @share-track/web-app",
+		"build": "npm run build --workspace @share-track/web-app",
+		"preview": "npm run preview --workspace @share-track/web-app",
+		"dev:server": "npm run dev --workspace @share-track/backend-server",
+		"start:server": "npm run start --workspace @share-track/backend-server"
 	}
 }
