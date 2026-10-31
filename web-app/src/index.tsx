@@ -1,5 +1,6 @@
 import { Component, render } from 'preact';
-import './style.css';
+import './style.scss';
+import { AppHeader, getPageNavItems } from './components/app-header';
 import { BuyTransactionModal } from './components/buy-transaction-modal';
 import { BulkPriceModal } from './components/bulk-price-modal';
 import { BulkTransactionModal } from './components/bulk-transaction-modal';
@@ -14,6 +15,7 @@ import { ShareLotsPage } from './share-lots-page';
 import { ActivityReportPage } from './activity-report-page';
 import { PriceRecordsPage } from './price-records-page';
 import {
+    AppPage,
     AppState,
     BulkPriceUpdateFormState,
     BulkTransactionFormState,
@@ -119,6 +121,10 @@ class App extends Component<{}, AppState> {
             [modal]: isOpen,
         }));
     }
+
+    private navigateTo = (page: AppPage): void => {
+        this.setState({ currentPage: page });
+    };
 
     private showFlashMessage(message: string, type: FlashMessageType): void {
         if (this.flashTimeoutId) {
@@ -1033,6 +1039,7 @@ class App extends Component<{}, AppState> {
                     getNextId={() => this.dataManager?.getNextId() ?? 1}
                     onViewSecurityPrices={this.handleViewSecurityPrices}
                     onDeleteAllPriceRecords={this.handleDeletePriceRecords()}
+                    onNavigate={this.navigateTo}
                     onBack={() => this.setState({ currentPage: 'portfolio' })}
                 />
             );
@@ -1047,6 +1054,7 @@ class App extends Component<{}, AppState> {
                     holdingEntities={holdingEntities}
                     onDeleteShareLot={this.handleDeleteShareLot}
                     onDeleteSellTransaction={this.handleDeleteSellTransaction}
+                    onNavigate={this.navigateTo}
                     onBack={() => this.setState({ currentPage: 'portfolio' })}
                     hasUnsavedChanges={hasUnsavedChanges}
                 />
@@ -1067,6 +1075,7 @@ class App extends Component<{}, AppState> {
                     onFinalizeEtfTaxStatement={this.handleFinalizeEtfTaxStatement}
                     onDeleteDividend={this.handleDeleteDividend}
                     hasUnsavedChanges={hasUnsavedChanges}
+                    onNavigate={this.navigateTo}
                     onBack={() => this.setState({ currentPage: 'portfolio' })}
                 />
             );
@@ -1080,6 +1089,7 @@ class App extends Component<{}, AppState> {
                     holdingEntities={holdingEntities}
                     securities={securities}
                     hasUnsavedChanges={hasUnsavedChanges}
+                    onNavigate={this.navigateTo}
                     onBack={() => this.setState({ currentPage: 'portfolio' })}
                 />
             );
@@ -1096,6 +1106,7 @@ class App extends Component<{}, AppState> {
                     scopeLabel={`${selectedSecurityCode} security`}
                     hasUnsavedChanges={hasUnsavedChanges}
                     onDelete={this.handleDeletePriceRecords(selectedSecurityCode)}
+                    onNavigate={this.navigateTo}
                     onBack={() => this.setState({ currentPage: 'admin' })}
                 />
             );
@@ -1111,93 +1122,27 @@ class App extends Component<{}, AppState> {
                         {flashMessage}
                     </div>
                 ) : null}
-                <header class="app-header">
-                    <div>
-                        <p class="eyebrow">ShareTrack</p>
-                        <h1>Portfolio</h1>
-                        {hasUnsavedChanges ? <span class="unsaved-changes">Unsaved changes</span> : null}
-                    </div>
-                    <div class="header-actions">
-                        <details class="header-dropdown">
-                            <summary class="secondary-button actions-trigger" aria-label="Actions">
-                                <span class="hamburger-icon" aria-hidden="true"><span></span><span></span><span></span></span>
-                                <span class="actions-label">Actions</span>
-                            </summary>
-                            <div class="dropdown-menu">
-                                <button
-                                    class="secondary-button dropdown-button"
-                                    onClick={() => this.setState({ currentPage: 'admin' })}
-                                    type="button"
-                                >
-                                    Admin
-                                </button>
-                                <button
-                                    class="secondary-button dropdown-button"
-                                    onClick={() => this.setState({ currentPage: 'share-lots' })}
-                                    type="button"
-                                >
-                                    Share lots
-                                </button>
-                                <button
-                                    class="secondary-button dropdown-button"
-                                    onClick={() => this.setState({ currentPage: 'dividends' })}
-                                    type="button"
-                                >
-                                    Dividends
-                                </button>
-                                <button
-                                    class="secondary-button dropdown-button"
-                                    onClick={() => this.setState({ currentPage: 'activity-report' })}
-                                    type="button"
-                                >
-                                    Activity report
-                                </button>
-                                <button
-                                    class="secondary-button dropdown-button"
-                                    onClick={() => this.setModalVisibility('isDataModalOpen', true)}
-                                    type="button"
-                                >
-                                    Upload data
-                                </button>
-                                <button
-                                    class="secondary-button dropdown-button"
-                                    onClick={() => this.setModalVisibility('isBulkPriceModalOpen', true)}
-                                    type="button"
-                                >
-                                    Update prices
-                                </button>
-                                <button
-                                    class="secondary-button dropdown-button"
-                                    onClick={() => this.setModalVisibility('isBulkTransactionModalOpen', true)}
-                                    type="button"
-                                >
-                                    Bulk load transactions
-                                </button>
-                                <button
-                                    class="secondary-button dropdown-button"
-                                    onClick={this.downloadCurrentData}
-                                    type="button"
-                                >
-                                    Download data
-                                </button>
-                                <button
-                                    class="primary-button dropdown-button"
-                                    onClick={() => this.setModalVisibility('isBuyModalOpen', true)}
-                                    type="button"
-                                >
-                                    Add buy transaction
-                                </button>
-                                <button
-                                    class="secondary-button dropdown-button"
-                                    onClick={() => this.setModalVisibility('isSellModalOpen', true)}
-                                    type="button"
-                                >
-                                    Add sell transaction
-                                </button>
-                            </div>
-                        </details>
-                    </div>
-                </header>
+                <AppHeader
+                    title="Portfolio"
+                    hasUnsavedChanges={hasUnsavedChanges}
+                    actions={
+                        <>
+                            <button class="primary-button" type="button" onClick={() => this.setModalVisibility('isBuyModalOpen', true)}>
+                                Add buy transaction
+                            </button>
+                            <button class="secondary-button" type="button" onClick={() => this.setModalVisibility('isSellModalOpen', true)}>
+                                Add sell transaction
+                            </button>
+                        </>
+                    }
+                    navItems={[
+                        ...getPageNavItems((page) => this.setState({ currentPage: page }), 'portfolio'),
+                        { label: 'Upload data', onSelect: () => this.setModalVisibility('isDataModalOpen', true) },
+                        { label: 'Update prices', onSelect: () => this.setModalVisibility('isBulkPriceModalOpen', true) },
+                        { label: 'Bulk load transactions', onSelect: () => this.setModalVisibility('isBulkTransactionModalOpen', true) },
+                        { label: 'Download data', onSelect: this.downloadCurrentData },
+                    ]}
+                />
 
                 <main class="content-panel">
                     {error ? (

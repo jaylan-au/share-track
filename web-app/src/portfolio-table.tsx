@@ -92,10 +92,10 @@ export function PortFolioTable(props: any) {
                 <tfoot>
                     <tr class="portfolio-summary-row">
                         {showEntityColumn ? <td colSpan={5}>Summary</td> : <td colSpan={4}>Summary</td>}
-                        <td>{currencyFormatter.format(totalCost)}</td>
-                        <td>{currencyFormatter.format(totalCurrentValue)}</td>
-                        <td>{`${percentageFormatter.format(averageProfitPercent)}%`}</td>
-                        <td>{currencyFormatter.format(totalProfit)}</td>
+                        <td data-label="Total cost">{currencyFormatter.format(totalCost)}</td>
+                        <td data-label="Current value">{currencyFormatter.format(totalCurrentValue)}</td>
+                        <td data-label="Profit %">{`${percentageFormatter.format(averageProfitPercent)}%`}</td>
+                        <td data-label="Simple gain/loss">{currencyFormatter.format(totalProfit)}</td>
                     </tr>
                 </tfoot>
             </table>

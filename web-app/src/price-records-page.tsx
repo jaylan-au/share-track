@@ -2,6 +2,8 @@ import { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { ShareSecurityPriceRecord } from './model/data-model';
 import { formatCurrency } from './model/formatters';
+import { AppHeader, getPageNavItems } from './components/app-header';
+import { AppPage } from './types';
 
 interface PriceRecordDeleteFormProps {
     scopeLabel: string;
@@ -13,6 +15,7 @@ interface PriceRecordsPageProps extends PriceRecordDeleteFormProps {
     records: ShareSecurityPriceRecord[];
     hasUnsavedChanges: boolean;
     onBack: () => void;
+    onNavigate: (page: AppPage) => void;
 }
 
 const dateFormatter = new Intl.DateTimeFormat('en-AU', {
@@ -76,19 +79,15 @@ export function PriceRecordDeleteForm({ scopeLabel, onDelete }: PriceRecordDelet
     );
 }
 
-export function PriceRecordsPage({ code, records, hasUnsavedChanges, scopeLabel, onDelete, onBack }: PriceRecordsPageProps): ComponentChildren {
+export function PriceRecordsPage({ code, records, hasUnsavedChanges, scopeLabel, onDelete, onBack, onNavigate }: PriceRecordsPageProps): ComponentChildren {
     return (
         <div class="app-shell">
-            <header class="app-header">
-                <div>
-                    <p class="eyebrow">ShareTrack</p>
-                    <h1>Price records: {code}</h1>
-                    {hasUnsavedChanges ? <span class="unsaved-changes">Unsaved changes</span> : null}
-                </div>
-                <div class="header-actions">
-                    <button class="secondary-button" type="button" onClick={onBack}>Back to Admin</button>
-                </div>
-            </header>
+            <AppHeader
+                title={`Price records: ${code}`}
+                hasUnsavedChanges={hasUnsavedChanges}
+                navItems={getPageNavItems(onNavigate)}
+                actions={<button class="secondary-button" type="button" onClick={onBack}>Back to Admin</button>}
+            />
 
             <main class="content-panel">
                 <PriceRecordDeleteForm scopeLabel={scopeLabel} onDelete={onDelete} />
@@ -105,10 +104,10 @@ export function PriceRecordsPage({ code, records, hasUnsavedChanges, scopeLabel,
                         <tbody>
                             {records.map((record) => (
                                 <tr key={String(record.id)}>
-                                    <td>{formatTimestamp(record.timeStamp)}</td>
-                                    <td>{formatCurrency(Number(record.price))}</td>
-                                    <td>{record.preserve ? 'Yes' : 'No'}</td>
-                                    <td>{record.id}</td>
+                                    <td data-label="Date">{formatTimestamp(record.timeStamp)}</td>
+                                    <td data-label="Price">{formatCurrency(Number(record.price))}</td>
+                                    <td data-label="Preserve">{record.preserve ? 'Yes' : 'No'}</td>
+                                    <td data-label="ID">{record.id}</td>
                                 </tr>
                             ))}
                         </tbody>

@@ -1,0 +1,77 @@
+@use 'sass:color';
+
+// Brand palette
+$palette-sky: #8ecae6;
+$palette-cerulean: #219ebc;
+$palette-navy: #023047;
+$palette-amber: #ffb703;
+$palette-orange: #fb8500;
+
+// Semantic colour tokens
+$color-bg: #eef6fa;
+$color-bg-end: #ffffff;
+$color-surface: #ffffff;
+$color-surface-muted: #f5fafc;
+$color-surface-subtle: #eaf5fa;
+$color-text: #0b2535;
+$color-text-secondary: #334e5e;
+$color-text-muted: #5b7584;
+$color-border: #d3e4ec;
+$color-border-strong: #a9c9d8;
+$color-primary: color.mix($palette-cerulean, $palette-navy, 70%);
+$color-primary-hover: $palette-navy;
+$color-on-primary: #ffffff;
+$color-accent: $palette-orange;
+$color-highlight: $palette-amber;
+$color-header-start: $palette-navy;
+$color-header-end: color.mix($palette-cerulean, $palette-navy, 60%);
+$color-focus: $palette-orange;
+$color-table-header: $color-surface-subtle;
+$color-danger: #dc2626;
+$color-danger-hover: #b91c1c;
+$color-success: #15803d;
+$color-success-bg: #f0fdf4;
+$color-success-border: #86efac;
+$color-error-text: #b91c1c;
+$color-error-bg: #fef2f2;
+$color-error-border: #fca5a5;
+$color-overlay: rgba($palette-navy, 0.55);
+
+// Shape and elevation
+$radius-sm: 8px;
+$radius-md: 10px;
+$radius-lg: 14px;
+$radius-xl: 18px;
+$shadow-sm: 0 1px 2px rgba($palette-navy, 0.08);
+$shadow-md: 0 10px 28px rgba($palette-navy, 0.1);
+$shadow-lg: 0 24px 60px rgba($palette-navy, 0.28);
+
+// Typography and layout
+$font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+$breakpoint-mobile: 640px;
+$touch-target: 44px;
+
+@mixin mobile {
+    @media (max-width: $breakpoint-mobile) {
+        @content;
+    }
+}
+
+:root {
+    --color-bg: #{$color-bg};
+    --color-surface: #{$color-surface};
+    --color-surface-muted: #{$color-surface-muted};
+    --color-text: #{$color-text};
+    --color-text-muted: #{$color-text-muted};
+    --color-border: #{$color-border};
+    --color-primary: #{$color-primary};
+    --color-primary-hover: #{$color-primary-hover};
+    --color-accent: #{$color-accent};
+    --color-highlight: #{$color-highlight};
+    --color-danger: #{$color-danger};
+    --color-success: #{$color-success};
+    --color-focus: #{$color-focus};
+    --border-color: #{$color-border};
+    --muted-text: #{$color-text-muted};
+    --surface-muted: #{$color-surface-muted};
+}

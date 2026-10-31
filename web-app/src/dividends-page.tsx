@@ -1,7 +1,8 @@
 import { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { HoldingEntity, ShareLot, ShareLotTransaction, ShareSecurity, ShareTransaction } from './model/data-model';
-import { DividendTransactionInput, EtfTaxStatementTransactionInput } from './types';
+import { AppHeader, getPageNavItems } from './components/app-header';
+import { AppPage, DividendTransactionInput, EtfTaxStatementTransactionInput } from './types';
 import { currencyFormatter } from './model/formatters';
 
 interface DividendsPageProps {
@@ -29,6 +30,7 @@ interface DividendsPageProps {
     onFinalizeEtfTaxStatement: (transactionId: string) => void;
     onDeleteDividend: (dividendTransactionId: string) => void;
     onBack: () => void;
+    onNavigate: (page: AppPage) => void;
 }
 
 interface DividendFormState {
@@ -76,6 +78,34 @@ const dateFormatter = new Intl.DateTimeFormat('en-AU', {
 
 function getCurrentDateString(): string {
     return new Date().toISOString().slice(0, 10);
+}
+
+type DividendSortColumn = 'transactionTimestamp' | 'code' | 'holdingEntity' | 'dividendPerShare' | 'numberOfSecurities' | 'totalFrankedAmount';
+
+const dividendSortOptions: Array<[DividendSortColumn, string]> = [
+    ['transactionTimestamp', 'Transaction date'],
+    ['code', 'Code'],
+    ['holdingEntity', 'Holding entity'],
+    ['dividendPerShare', 'Dividend per share'],
+    ['numberOfSecurities', 'Number of securities'],
+    ['totalFrankedAmount', 'Total franked amount'],
+];
+
+function getDividendSortValue(transaction: ShareTransaction, column: DividendSortColumn): number | string {
+    switch (column) {
+        case 'transactionTimestamp':
+            return transaction.transactionTimestamp ?? 0;
+        case 'code':
+            return transaction.code ?? '';
+        case 'holdingEntity':
+            return String(transaction.holdingEntity ?? '');
+        case 'dividendPerShare':
+            return Number(transaction.dividendPerShare ?? 0);
+        case 'numberOfSecurities':
+            return Number(transaction.numberOfSecurities ?? 0);
+        case 'totalFrankedAmount':
+            return Number(transaction.totalFrankedAmount ?? 0);
+    }
 }
 
 function formatDate(timestamp?: number): string {
@@ -128,6 +158,7 @@ export function DividendsPage({
     onFinalizeEtfTaxStatement,
     onDeleteDividend,
     onBack,
+    onNavigate,
 }: DividendsPageProps): ComponentChildren {
     const [isDividendModalOpen, setIsDividendModalOpen] = useState(false);
     const [isEtfTaxStatementModalOpen, setIsEtfTaxStatementModalOpen] = useState(false);
@@ -139,9 +170,30 @@ export function DividendsPage({
     const [finalizingTransactionId, setFinalizingTransactionId] = useState<string | null>(null);
     const [finalizingTransaction, setFinalizingTransaction] = useState<ShareTransaction | null>(null);
 
-    const sortedDividends = [...dividends]
+    const [sortColumn, setSortColumn] = useState<DividendSortColumn>('transactionTimestamp');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+    const sortedDividends = dividends
         .filter((transaction) => transaction.type === 'dividend' || transaction.type === 'etf-tax-statement')
-        .sort((left, right) => (right.transactionTimestamp ?? 0) - (left.transactionTimestamp ?? 0));
+        .sort((left, right) => {
+            const leftValue = getDividendSortValue(left, sortColumn);
+            const rightValue = getDividendSortValue(right, sortColumn);
+
+            const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
+                ? leftValue - rightValue
+                : String(leftValue).localeCompare(String(rightValue));
+
+            return sortDirection === 'asc' ? comparison : -comparison;
+        });
+
+    const updateSort = (column: DividendSortColumn): void => {
+        if (sortColumn === column) {
+            setSortDirection((current) => current === 'asc' ? 'desc' : 'asc');
+            return;
+        }
+
+        setSortColumn(column);
+        setSortDirection(column === 'transactionTimestamp' ? 'desc' : 'asc');
+    };
 
     const updateDividendFormField = (field: keyof DividendFormState, value: string): void => {
         setDividendForm((current) => ({
@@ -300,29 +352,45 @@ export function DividendsPage({
 
     return (
         <div class="app-shell">
-            <header class="app-header">
-                <div>
-                    <p class="eyebrow">ShareTrack</p>
-                    <h1>Dividends</h1>
-                    {hasUnsavedChanges ? <span class="unsaved-changes">Unsaved changes</span> : null}
-                </div>
-                <div class="header-actions">
-                    <button class="primary-button" type="button" onClick={openDividendModal}>
-                        Add dividend
-                    </button>
-                    <button class="secondary-button" type="button" onClick={openEtfTaxStatementModal}>
-                        Add ETF Tax Statement
-                    </button>
-                    <button class="secondary-button" type="button" onClick={onBack}>
-                        Back to portfolio
-                    </button>
-                </div>
-            </header>
+            <AppHeader
+                title="Dividends"
+                hasUnsavedChanges={hasUnsavedChanges}
+                navItems={getPageNavItems(onNavigate, 'dividends')}
+                actions={
+                    <>
+                        <button class="primary-button" type="button" onClick={openDividendModal}>
+                            Add dividend
+                        </button>
+                        <button class="secondary-button" type="button" onClick={openEtfTaxStatementModal}>
+                            Add ETF Tax Statement
+                        </button>
+                        <button class="secondary-button" type="button" onClick={onBack}>
+                            Back to portfolio
+                        </button>
+                    </>
+                }
+            />
 
             <main class="content-panel">
                 {error ? (
                     <div class="error-message">{error}</div>
                 ) : null}
+
+                <div class="mobile-sort">
+                    <label class="field">
+                        <span>Sort by</span>
+                        <select value={sortColumn} onInput={(event) => updateSort((event.target as HTMLSelectElement).value as DividendSortColumn)}>
+                            {dividendSortOptions.map(([column, label]) => <option value={column} key={column}>{label}</option>)}
+                        </select>
+                    </label>
+                    <button
+                        type="button"
+                        class="secondary-button"
+                        onClick={() => setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')}
+                    >
+                        {sortDirection === 'asc' ? 'Ascending' : 'Descending'}
+                    </button>
+                </div>
 
                 <div class="share-lots-table-wrapper">
                     {sortedDividends.length ? (
@@ -349,21 +417,21 @@ export function DividendsPage({
                             <tbody>
                                 {sortedDividends.map((transaction) => (
                                     <tr key={transaction.id}>
-                                        <td>{transaction.type === 'etf-tax-statement' ? 'ETF Tax Statement' : 'Dividend'}</td>
-                                        <td>{formatDate(transaction.transactionTimestamp)}</td>
-                                        <td>{transaction.code}</td>
-                                        <td>{transaction.holdingEntity}</td>
-                                        <td>{typeof transaction.unitCostDelta === 'number' ? currencyFormatter.format(transaction.unitCostDelta) : '—'}</td>
-                                        <td>{typeof transaction.dividendPerShare === 'number' ? currencyFormatter.format(transaction.dividendPerShare) : '—'}</td>
-                                        <td>{typeof transaction.numberOfSecurities === 'number' ? transaction.numberOfSecurities : '—'}</td>
-                                        <td>{typeof transaction.totalFrankedAmount === 'number' ? currencyFormatter.format(transaction.totalFrankedAmount) : '—'}</td>
-                                        <td>{typeof transaction.totalUnfrankedAmount === 'number' ? currencyFormatter.format(transaction.totalUnfrankedAmount) : '—'}</td>
-                                        <td>{typeof transaction.totalFrankingCredit === 'number' ? currencyFormatter.format(transaction.totalFrankingCredit) : '—'}</td>
-                                        <td>{transaction.originalCurrency || 'AUD'}</td>
-                                        <td>{formatDate(transaction.cutOffDate)}</td>
-                                        <td>{transaction.documentRef || '—'}</td>
-                                        <td>{transaction.notes || '—'}</td>
-                                        <td class="table-actions">
+                                        <td data-label="Type">{transaction.type === 'etf-tax-statement' ? 'ETF Tax Statement' : 'Dividend'}</td>
+                                        <td data-label="Transaction date">{formatDate(transaction.transactionTimestamp)}</td>
+                                        <td data-label="Code">{transaction.code}</td>
+                                        <td data-label="Holding entity">{transaction.holdingEntity}</td>
+                                        <td data-label="Unit cost delta">{typeof transaction.unitCostDelta === 'number' ? currencyFormatter.format(transaction.unitCostDelta) : '—'}</td>
+                                        <td data-label="Dividend per share">{typeof transaction.dividendPerShare === 'number' ? currencyFormatter.format(transaction.dividendPerShare) : '—'}</td>
+                                        <td data-label="Number of securities">{typeof transaction.numberOfSecurities === 'number' ? transaction.numberOfSecurities : '—'}</td>
+                                        <td data-label="Total franked amount">{typeof transaction.totalFrankedAmount === 'number' ? currencyFormatter.format(transaction.totalFrankedAmount) : '—'}</td>
+                                        <td data-label="Total unfranked amount">{typeof transaction.totalUnfrankedAmount === 'number' ? currencyFormatter.format(transaction.totalUnfrankedAmount) : '—'}</td>
+                                        <td data-label="Total franking credit">{typeof transaction.totalFrankingCredit === 'number' ? currencyFormatter.format(transaction.totalFrankingCredit) : '—'}</td>
+                                        <td data-label="Original currency">{transaction.originalCurrency || 'AUD'}</td>
+                                        <td data-label="Cut off date">{formatDate(transaction.cutOffDate)}</td>
+                                        <td data-label="Document ref">{transaction.documentRef || '—'}</td>
+                                        <td data-label="Notes">{transaction.notes || '—'}</td>
+                                        <td class="table-actions" data-label="Actions">
                                             {transaction.type === 'etf-tax-statement' ? (
                                                 transaction.finalized ? (
                                                     <span>Finalised</span>
@@ -697,14 +765,14 @@ export function DividendsPage({
                                     <tbody>
                                         {finalizationPlan.affectedLots.map((entry) => (
                                             <tr key={entry.lot.id}>
-                                                <td>{entry.lot.id}</td>
-                                                <td>{entry.lot.code}</td>
-                                                <td>{entry.lot.holdingEntity}</td>
-                                                <td>{formatDate(entry.buyDate)}</td>
-                                                <td>{entry.isClosed ? 'Closed' : 'Open'}</td>
-                                                <td>{entry.isClosed ? formatDate(entry.closedDate ?? undefined) : '—'}</td>
-                                                <td>{entry.unitCount}</td>
-                                                <td>{currencyFormatter.format(entry.unitCurrentCost)}</td>
+                                                <td data-label="Share lot ID">{entry.lot.id}</td>
+                                                <td data-label="Code">{entry.lot.code}</td>
+                                                <td data-label="Holding entity">{entry.lot.holdingEntity}</td>
+                                                <td data-label="Original buy date">{formatDate(entry.buyDate)}</td>
+                                                <td data-label="Status">{entry.isClosed ? 'Closed' : 'Open'}</td>
+                                                <td data-label="Closed date">{entry.isClosed ? formatDate(entry.closedDate ?? undefined) : '—'}</td>
+                                                <td data-label="Units">{entry.unitCount}</td>
+                                                <td data-label="Current cost">{currencyFormatter.format(entry.unitCurrentCost)}</td>
                                             </tr>
                                         ))}
                                     </tbody>

@@ -1,0 +1,282 @@
+@use 'theme' as *;
+
+// Turns a table into a stack of cards on narrow screens.
+// Each cell shows its header text through data-label.
+// Child combinators keep nested tables from inheriting outer table rules.
+@mixin card-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+
+    > thead {
+        display: none;
+    }
+
+    > tbody {
+        display: grid;
+        gap: 12px;
+    }
+
+    > tfoot {
+        display: block;
+        margin-top: 12px;
+    }
+
+    > tbody > tr,
+    > tfoot > tr {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+        width: 100%;
+        padding: 12px;
+        border: 1px solid $color-border;
+        border-radius: $radius-md;
+        background: $color-surface;
+        box-shadow: $shadow-sm;
+    }
+
+    > tbody > tr > td,
+    > tfoot > tr > td {
+        display: flex;
+        min-width: 0;
+        width: 100%;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 2px;
+        padding: 4px 0;
+        border: 0;
+        text-align: left;
+        overflow-wrap: anywhere;
+
+        &::before {
+            content: attr(data-label);
+            color: $color-text-muted;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            text-align: left;
+            text-transform: uppercase;
+        }
+    }
+
+    > tbody > tr > td.table-actions {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        padding-top: 8px;
+
+        &::before {
+            width: 100%;
+        }
+    }
+}
+
+// Hidden on desktop; the mobile block below shows it
+.mobile-sort {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+@include mobile {
+    .app-shell {
+        padding: 16px 12px 32px;
+    }
+
+    .app-header {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 16px;
+        margin-bottom: 16px;
+        border-radius: $radius-lg;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: nowrap;
+
+        .primary-button,
+        .secondary-button,
+        .submit-button {
+            min-height: $touch-target;
+            padding: 8px 12px;
+        }
+
+        .menu-toggle {
+            width: $touch-target;
+            height: $touch-target;
+            padding: 0;
+        }
+    }
+
+    .app-drawer {
+        width: min(320px, 88vw);
+    }
+
+    .drawer-item {
+        min-height: $touch-target;
+    }
+
+    .portfolio-toolbar {
+        justify-content: stretch;
+    }
+
+    .grouping-select {
+        width: 100%;
+        justify-content: space-between;
+
+        select {
+            min-width: 0;
+            max-width: 65%;
+        }
+    }
+
+    .content-panel {
+        padding: 14px;
+        border-radius: $radius-lg;
+    }
+
+    .field input,
+    .field select,
+    .field textarea {
+        min-height: $touch-target;
+        font-size: 16px;
+    }
+
+    .primary-button,
+    .submit-button,
+    .secondary-button,
+    .danger-button,
+    .link-button {
+        min-height: $touch-target;
+    }
+
+    .modal-backdrop {
+        padding: 0;
+    }
+
+    .modal-dialog {
+        width: 100%;
+        height: 100%;
+        max-height: 100%;
+        border-radius: 0;
+        padding: 16px;
+    }
+
+    // Mobile-only sort control for share lots, hidden on desktop
+    .mobile-sort {
+        display: flex;
+        flex-wrap: wrap;
+
+        .field {
+            flex: 1 1 160px;
+            min-width: 0;
+        }
+
+        .secondary-button {
+            min-height: $touch-target;
+        }
+    }
+
+    .section-header {
+        flex-direction: column;
+        align-items: stretch;
+
+        .secondary-button,
+        .primary-button {
+            width: 100%;
+        }
+    }
+
+    .admin-table input,
+    .admin-table select {
+        min-height: $touch-target;
+        font-size: 16px;
+    }
+
+    // Portfolio: wrapper div around the table
+    .portfolio-table {
+        overflow: visible;
+
+        table {
+            min-width: 0;
+            @include card-table;
+
+        }
+
+        .portfolio-card-identity,
+        .portfolio-card-units,
+        .portfolio-card-critical {
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .portfolio-card-detail {
+            color: $color-text-secondary;
+            font-size: 0.82rem;
+        }
+
+        .portfolio-summary-row > td:first-child {
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .metric-value-group {
+            align-items: flex-end;
+            min-width: 0;
+            max-width: 100%;
+        }
+    }
+
+    .admin-table {
+        display: block;
+        min-width: 0;
+        @include card-table;
+    }
+
+    .share-lots-table {
+        @include card-table;
+    }
+
+    .nested-table {
+        margin-top: 4px;
+        @include card-table;
+
+        > tbody {
+            gap: 8px;
+        }
+
+        > tbody > tr {
+            padding: 10px;
+            background: $color-surface-muted;
+        }
+    }
+
+    // The expanded row is a container, not a card
+    .share-lots-table > tbody > tr.expanded-row {
+        padding: 0;
+        border: 0;
+        background: none;
+        box-shadow: none;
+
+        > td {
+            padding: 0;
+            align-items: stretch;
+            min-width: 0;
+
+            &::before {
+                content: none;
+            }
+        }
+    }
+
+    .table-scroll-container table {
+        min-width: 0;
+    }
+}

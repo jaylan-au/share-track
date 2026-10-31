@@ -2,6 +2,8 @@ import { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { HoldingEntity, ShareLot, ShareLotTransaction, ShareTransaction, ShareSecurity } from './model/data-model';
 import { ActivityReportFilters, createActivityMarkdownReport } from './model/activity-report';
+import { AppHeader, getPageNavItems } from './components/app-header';
+import { AppPage } from './types';
 
 interface ActivityReportPageProps {
     transactions: ShareTransaction[];
@@ -11,13 +13,14 @@ interface ActivityReportPageProps {
     securities: ShareSecurity[];
     hasUnsavedChanges: boolean;
     onBack: () => void;
+    onNavigate: (page: AppPage) => void;
 }
 
 function getCurrentDateString(): string {
     return new Date().toISOString().slice(0, 10);
 }
 
-export function ActivityReportPage({ transactions, lots, lotLinks, holdingEntities, securities, hasUnsavedChanges, onBack }: ActivityReportPageProps): ComponentChildren {
+export function ActivityReportPage({ transactions, lots, lotLinks, holdingEntities, securities, hasUnsavedChanges, onBack, onNavigate }: ActivityReportPageProps): ComponentChildren {
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState(getCurrentDateString());
     const [holdingEntity, setHoldingEntity] = useState('');
@@ -57,17 +60,17 @@ export function ActivityReportPage({ transactions, lots, lotLinks, holdingEntiti
 
     return (
         <div class="app-shell">
-            <header class="app-header">
-                <div>
-                    <p class="eyebrow">ShareTrack</p>
-                    <h1>Activity report</h1>
-                    {hasUnsavedChanges ? <span class="unsaved-changes">Unsaved changes</span> : null}
-                </div>
-                <div class="header-actions">
-                    {report ? <button class="secondary-button" type="button" onClick={downloadReport}>Download markdown</button> : null}
-                    <button class="secondary-button" type="button" onClick={onBack}>Back to portfolio</button>
-                </div>
-            </header>
+            <AppHeader
+                title="Activity report"
+                hasUnsavedChanges={hasUnsavedChanges}
+                navItems={getPageNavItems(onNavigate, 'activity-report')}
+                actions={
+                    <>
+                        {report ? <button class="secondary-button" type="button" onClick={downloadReport}>Download markdown</button> : null}
+                        <button class="secondary-button" type="button" onClick={onBack}>Back to portfolio</button>
+                    </>
+                }
+            />
 
             <main class="content-panel">
                 {error ? <div class="error-message">{error}</div> : null}

@@ -2,6 +2,8 @@ import { ComponentChildren } from 'preact';
 import { useMemo, useState } from 'preact/hooks';
 import { HoldingEntity, ShareLot, ShareLotTransaction, ShareTransaction } from './model/data-model';
 import { currencyFormatter } from './model/formatters';
+import { AppHeader, getPageNavItems } from './components/app-header';
+import { AppPage } from './types';
 
 interface ShareLotsPageProps {
     shareLots: ShareLot[];
@@ -11,11 +13,22 @@ interface ShareLotsPageProps {
     hasUnsavedChanges: boolean;
     onDeleteShareLot: (shareLotId: string) => void;
     onDeleteSellTransaction: (sellTransactionId: string) => void;
+    onNavigate: (page: AppPage) => void;
     onBack: () => void;
 }
 
 type SortColumn = 'buyDate' | 'code' | 'holdingEntity' | 'unitCount' | 'unitOriginalCost' | 'unitCurrentCost' | 'isOpen';
 type SortDirection = 'asc' | 'desc';
+
+const mobileSortOptions: Array<[SortColumn, string]> = [
+    ['buyDate', 'Buy date'],
+    ['code', 'Code'],
+    ['holdingEntity', 'Holding entity'],
+    ['unitCount', 'Units'],
+    ['unitOriginalCost', 'Unit cost'],
+    ['unitCurrentCost', 'Current cost'],
+    ['isOpen', 'Status'],
+];
 type LotStatusFilter = 'all' | 'open' | 'closed';
 
 interface ShareLotRowModel {
@@ -115,7 +128,7 @@ function getSortValue(row: ShareLotRowModel, column: SortColumn): string | numbe
     }
 }
 
-export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactions, holdingEntities, hasUnsavedChanges, onDeleteShareLot, onDeleteSellTransaction, onBack }: ShareLotsPageProps): ComponentChildren {
+export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactions, holdingEntities, hasUnsavedChanges, onDeleteShareLot, onDeleteSellTransaction, onBack, onNavigate }: ShareLotsPageProps): ComponentChildren {
     const [sortColumn, setSortColumn] = useState<SortColumn>('buyDate');
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
     const [expandedLotIds, setExpandedLotIds] = useState<string[]>([]);
@@ -217,23 +230,19 @@ export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactio
 
     return (
         <div class="app-shell">
-            <header class="app-header">
-                <div>
-                    <p class="eyebrow">ShareTrack</p>
-                    <h1>Share lots</h1>
-                    {hasUnsavedChanges ? <span class="unsaved-changes">Unsaved changes</span> : null}
-                </div>
-                <div class="header-actions">
-                    <button
-                        class="secondary-button"
-                        type="button"
-                        onClick={() => exportShareLotsCsv(sortedRows)}
-                    >
-                        {hasActiveFilters ? 'Download filtered lots' : 'Download share lots'}
-                    </button>
-                    <button class="secondary-button" type="button" onClick={onBack}>Back to portfolio</button>
-                </div>
-            </header>
+            <AppHeader
+                title="Share lots"
+                hasUnsavedChanges={hasUnsavedChanges}
+                navItems={getPageNavItems(onNavigate, 'share-lots')}
+                actions={
+                    <>
+                        <button class="secondary-button" type="button" onClick={() => exportShareLotsCsv(sortedRows)}>
+                            {hasActiveFilters ? 'Download filtered lots' : 'Download share lots'}
+                        </button>
+                        <button class="secondary-button" type="button" onClick={onBack}>Back to portfolio</button>
+                    </>
+                }
+            />
 
             <main class="content-panel">
                 <div class="share-lots-filters">
@@ -274,6 +283,22 @@ export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactio
                         </label>
                     </div>
                     <p class="share-lots-filter-count">Showing {sortedRows.length} of {rows.length} share lots</p>
+                </div>
+
+                <div class="mobile-sort">
+                    <label class="field">
+                        <span>Sort by</span>
+                        <select value={sortColumn} onInput={(event) => updateSort((event.target as HTMLSelectElement).value as SortColumn)}>
+                            {mobileSortOptions.map(([column, label]) => <option value={column} key={column}>{label}</option>)}
+                        </select>
+                    </label>
+                    <button
+                        type="button"
+                        class="secondary-button"
+                        onClick={() => setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')}
+                    >
+                        {sortDirection === 'asc' ? 'Ascending' : 'Descending'}
+                    </button>
                 </div>
 
                 <div class="share-lots-table-wrapper">
@@ -326,14 +351,14 @@ export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactio
                                 return (
                                     <>
                                         <tr key={row.lot.id}>
-                                            <td>{formatDate(buyTransaction?.transactionTimestamp)}</td>
-                                            <td>{row.lot.code}</td>
-                                            <td>{row.holdingEntityName}</td>
-                                            <td>{row.lot.unitCount}</td>
-                                            <td>{currencyFormatter.format(Number(row.lot.unitOriginalCost ?? 0))}</td>
-                                            <td>{currencyFormatter.format(Number(row.lot.unitCurrentCost ?? 0))}</td>
-                                            <td>{row.lot.isOpen === false ? 'Closed' : 'Open'}</td>
-                                            <td class="table-actions">
+                                            <td data-label="Buy date">{formatDate(buyTransaction?.transactionTimestamp)}</td>
+                                            <td data-label="Code">{row.lot.code}</td>
+                                            <td data-label="Holding entity">{row.holdingEntityName}</td>
+                                            <td data-label="Units">{row.lot.unitCount}</td>
+                                            <td data-label="Unit cost">{currencyFormatter.format(Number(row.lot.unitOriginalCost ?? 0))}</td>
+                                            <td data-label="Current cost">{currencyFormatter.format(Number(row.lot.unitCurrentCost ?? 0))}</td>
+                                            <td data-label="Status">{row.lot.isOpen === false ? 'Closed' : 'Open'}</td>
+                                            <td class="table-actions" data-label="Actions">
                                                 <button
                                                     type="button"
                                                     class="secondary-button"
@@ -409,16 +434,16 @@ export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactio
 
                                                                             return (
                                                                                 <tr key={`${row.lot.id}-${shareLotTransaction.id}`}>
-                                                                                    <td>{transaction?.type ?? 'Unknown'}</td>
-                                                                                    <td>{formatDate(transaction?.transactionTimestamp)}</td>
-                                                                                    <td>{displayedUnits}</td>
-                                                                                    <td>{transaction ? currencyFormatter.format(Number(transaction.unitPrice ?? 0)) : '—'}</td>
-                                                                                    <td>{typeof transaction?.unitCountDelta === 'number' ? transaction.unitCountDelta : '—'}</td>
-                                                                                    <td>{typeof transaction?.unitCostDelta === 'number' ? currencyFormatter.format(Number(transaction.unitCostDelta ?? 0)) : '—'}</td>
-                                                                                    <td>{transaction ? currencyFormatter.format(Number(transaction.fees ?? 0)) : '—'}</td>
-                                                                                    <td>{transaction?.documentRef || '—'}</td>
-                                                                                    <td>{transaction?.notes || '—'}</td>
-                                                                                    <td>
+                                                                                    <td data-label="Type">{transaction?.type ?? 'Unknown'}</td>
+                                                                                    <td data-label="Transaction date">{formatDate(transaction?.transactionTimestamp)}</td>
+                                                                                    <td data-label="Units">{displayedUnits}</td>
+                                                                                    <td data-label="Unit price">{transaction ? currencyFormatter.format(Number(transaction.unitPrice ?? 0)) : '—'}</td>
+                                                                                    <td data-label="Unit count delta">{typeof transaction?.unitCountDelta === 'number' ? transaction.unitCountDelta : '—'}</td>
+                                                                                    <td data-label="Unit cost delta">{typeof transaction?.unitCostDelta === 'number' ? currencyFormatter.format(Number(transaction.unitCostDelta ?? 0)) : '—'}</td>
+                                                                                    <td data-label="Fees">{transaction ? currencyFormatter.format(Number(transaction.fees ?? 0)) : '—'}</td>
+                                                                                    <td data-label="Document ref">{transaction?.documentRef || '—'}</td>
+                                                                                    <td data-label="Notes">{transaction?.notes || '—'}</td>
+                                                                                    <td class="table-actions" data-label="Actions">
                                                                                         {transaction?.type === 'sell' ? (
                                                                                             <button
                                                                                                 type="button"

@@ -1,0 +1,161 @@
+@use 'theme' as *;
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 760px;
+}
+
+th,
+td {
+    padding: 14px 12px;
+    text-align: left;
+    border-bottom: 1px solid $color-border;
+}
+
+th {
+    background: $color-table-header;
+    font-size: 0.85rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: $color-text-secondary;
+}
+
+tbody tr:hover {
+    background: $color-surface-muted;
+}
+
+.table-scroll-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.portfolio-table {
+    width: 100%;
+}
+
+.admin-table {
+    min-width: 680px;
+
+    input,
+    select {
+        width: 100%;
+        min-width: 120px;
+        box-sizing: border-box;
+    }
+
+    td.table-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+    }
+}
+
+.share-lots-table {
+    width: 100%;
+    border-collapse: collapse;
+
+    th,
+    td {
+        border-bottom: 1px solid $color-border;
+        padding: 10px 12px;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    th {
+        background: $color-table-header;
+    }
+}
+
+.expanded-row td {
+    background: $color-surface-muted;
+}
+
+.table-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.share-lot-details {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 8px 0;
+}
+
+.share-lot-details-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+
+    h3 {
+        margin: 0;
+    }
+}
+
+.share-lot-transactions h4 {
+    margin: 0;
+}
+
+.transaction-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+
+    div {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        background: $color-surface;
+        border: 1px solid $color-border;
+        border-radius: $radius-md;
+        padding: 10px 12px;
+    }
+}
+
+.nested-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+
+    th,
+    td {
+        border-bottom: 1px solid $color-border;
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+    }
+}
+
+.metric-value-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    span {
+        font-weight: 700;
+    }
+
+    small {
+        font-size: 0.72rem;
+        color: $color-text-muted;
+        font-weight: 600;
+    }
+}
+
+.profit-positive {
+    color: $color-success;
+    font-weight: 700;
+}
+
+.profit-negative {
+    color: $color-error-text;
+    font-weight: 700;
+}

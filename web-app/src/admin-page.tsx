@@ -2,6 +2,8 @@ import { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { EntityId, HoldingEntity, ShareSecurity } from './model/data-model';
 import { PriceRecordDeleteForm } from './price-records-page';
+import { AppHeader, getPageNavItems } from './components/app-header';
+import { AppPage } from './types';
 
 interface AdminPageProps {
     securities: ShareSecurity[];
@@ -16,6 +18,7 @@ interface AdminPageProps {
     onViewSecurityPrices: (code: string) => void;
     onDeleteAllPriceRecords: (fromDate: string, toDate: string, includePreserved: boolean) => number;
     onBack: () => void;
+    onNavigate: (page: AppPage) => void;
 }
 
 export function AdminPage({
@@ -31,6 +34,7 @@ export function AdminPage({
     onViewSecurityPrices,
     onDeleteAllPriceRecords,
     onBack,
+    onNavigate,
 }: AdminPageProps): ComponentChildren {
     const [localSecurities, setLocalSecurities] = useState<ShareSecurity[]>(() => securities.map((security) => ({ ...security })));
     const [localHoldingEntities, setLocalHoldingEntities] = useState<HoldingEntity[]>(() => holdingEntities.map((entity) => ({ ...entity })));
@@ -156,20 +160,19 @@ export function AdminPage({
 
     return (
         <div class="app-shell">
-            <header class="app-header">
-                <div>
-                    <p class="eyebrow">ShareTrack</p>
-                    <h1>Admin</h1>
-                    {hasUnsavedChanges ? <span class="unsaved-changes">Unsaved changes</span> : null}
-                </div>
-                <div class="header-actions">
-                    <button class="secondary-button" type="button" onClick={onBack}>Back to portfolio</button>
-                </div>
-            </header>
+            <AppHeader
+                title="Admin"
+                hasUnsavedChanges={hasUnsavedChanges}
+                navItems={getPageNavItems(onNavigate, 'admin')}
+                actions={<button class="secondary-button" type="button" onClick={onBack}>Back to portfolio</button>}
+            />
 
             <main class="content-panel">
-                <div class="transaction-form-panel">
-                    <h2>Registered securities</h2>
+                <div class="transaction-form-panel admin-section">
+                    <div class="section-header">
+                        <h2>Registered securities</h2>
+                        <button class="secondary-button" type="button" onClick={addSecurity}>Add security</button>
+                    </div>
                     <div class="table-scroll-container">
                     <table class="admin-table">
                         <thead>
@@ -220,18 +223,20 @@ export function AdminPage({
                         </tbody>
                     </table>
                     </div>
-                    <div class="form-actions">
-                        <button class="secondary-button" type="button" onClick={addSecurity}>Add security</button>
-                    </div>
                 </div>
 
-                <div class="transaction-form-panel">
-                    <h2>All security price records</h2>
+                <div class="transaction-form-panel admin-section">
+                    <div class="section-header">
+                        <h2>All security price records</h2>
+                    </div>
                     <PriceRecordDeleteForm scopeLabel="all securities" onDelete={onDeleteAllPriceRecords} />
                 </div>
 
-                <div class="transaction-form-panel">
-                    <h2>Holding entities</h2>
+                <div class="transaction-form-panel admin-section">
+                    <div class="section-header">
+                        <h2>Holding entities</h2>
+                        <button class="secondary-button" type="button" onClick={addHoldingEntity}>Add holding entity</button>
+                    </div>
                     <div class="table-scroll-container">
                     <table class="admin-table">
                         <thead>
@@ -268,9 +273,6 @@ export function AdminPage({
                             ))}
                         </tbody>
                     </table>
-                    </div>
-                    <div class="form-actions">
-                        <button class="secondary-button" type="button" onClick={addHoldingEntity}>Add holding entity</button>
                     </div>
                 </div>
             </main>
