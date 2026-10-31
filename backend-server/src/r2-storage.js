@@ -1,36 +1,18 @@
-import {
-	GetObjectCommand,
-	ListObjectsV2Command,
-	PutObjectCommand,
-	S3Client,
-} from '@aws-sdk/client-s3';
-import { randomUUID } from 'node:crypto';
-
 let lastVersionMillis = 0;
 
-export function createR2StorageFromEnv(env = process.env) {
-	const { CLOUDFLARE_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME } = env;
-	if (!CLOUDFLARE_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_BUCKET_NAME) {
-		return null;
-	}
-	const client = new S3Client({
-		region: 'auto',
-		endpoint: `https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-		credentials: {
-			accessKeyId: R2_ACCESS_KEY_ID,
-			secretAccessKey: R2_SECRET_ACCESS_KEY,
-		},
-	});
-	return createR2Storage(client, R2_BUCKET_NAME);
-}
-
-export function createR2Storage(client, bucketName) {
+/**
+ * Creates file storage over an R2 bucket binding-shaped object:
+ * `put(key, body)`, `get(key)` (resolving to an object with `text()` or null),
+ * and `list({ prefix, cursor })` (resolving to `{ objects, truncated, cursor }`).
+ * Workers pass the native R2 binding; Node passes an S3-backed bucket.
+ */
+export function createR2Storage(bucket) {
 	return {
 		async listFiles(userId) {
-			const objects = await listUserObjects(client, bucketName, userId);
+			const objects = await listUserObjects(bucket, userId);
 			const files = new Map();
 			for (const object of objects) {
-				const parsed = parseObjectKey(object.Key);
+				const parsed = parseObjectKey(object.key);
 				if (!parsed) {
 					continue;
 				}
@@ -55,9 +37,9 @@ export function createR2Storage(client, bucketName) {
 		},
 
 		async listVersions(userId, fileId) {
-			const objects = await listUserObjects(client, bucketName, userId, fileId);
+			const objects = await listUserObjects(bucket, userId, fileId);
 			return objects
-				.map((object) => ({ object, parsed: parseObjectKey(object.Key) }))
+				.map((object) => ({ object, parsed: parseObjectKey(object.key) }))
 				.filter(({ parsed }) => parsed?.fileId === fileId)
 				.map(({ object, parsed }) => ({
 					fileName: parsed.fileName,
@@ -69,14 +51,11 @@ export function createR2Storage(client, bucketName) {
 
 		async putVersion({ userId, fileId, fileName, data }) {
 			lastVersionMillis = Math.max(Date.now(), lastVersionMillis + 1);
-			const versionId = `${String(lastVersionMillis).padStart(13, '0')}-${randomUUID()}`;
+			const versionId = `${String(lastVersionMillis).padStart(13, '0')}-${crypto.randomUUID()}`;
 			const key = createObjectKey(userId, fileId, fileName, versionId);
-			await client.send(new PutObjectCommand({
-				Bucket: bucketName,
-				Key: key,
-				Body: JSON.stringify(data),
-				ContentType: 'application/json; charset=utf-8',
-			}));
+			await bucket.put(key, JSON.stringify(data), {
+				httpMetadata: { contentType: 'application/json; charset=utf-8' },
+			});
 			return { fileName, versionId, createdAt: versionTimestamp(versionId) };
 		},
 
@@ -89,8 +68,11 @@ export function createR2Storage(client, bucketName) {
 				return null;
 			}
 			const key = createObjectKey(userId, fileId, selected.fileName, selected.versionId);
-			const result = await client.send(new GetObjectCommand({ Bucket: bucketName, Key: key }));
-			const text = await result.Body.transformToString();
+			const object = await bucket.get(key);
+			if (!object) {
+				return null;
+			}
+			const text = await object.text();
 			try {
 				return { ...selected, data: JSON.parse(text) };
 			} catch {
@@ -102,19 +84,15 @@ export function createR2Storage(client, bucketName) {
 	};
 }
 
-async function listUserObjects(client, bucketName, userId, fileId) {
+async function listUserObjects(bucket, userId, fileId) {
 	const prefix = fileId ? `${userPrefix(userId)}${fileId}/` : userPrefix(userId);
 	const objects = [];
-	let continuationToken;
+	let cursor;
 	do {
-		const result = await client.send(new ListObjectsV2Command({
-			Bucket: bucketName,
-			Prefix: prefix,
-			ContinuationToken: continuationToken,
-		}));
-		objects.push(...(result.Contents ?? []));
-		continuationToken = result.IsTruncated ? result.NextContinuationToken : undefined;
-	} while (continuationToken);
+		const result = await bucket.list({ prefix, cursor });
+		objects.push(...result.objects);
+		cursor = result.truncated ? result.cursor : undefined;
+	} while (cursor);
 	return objects;
 }
 
@@ -154,7 +132,7 @@ function versionTimestamp(versionId) {
 }
 
 function objectTimestamp(object, versionId) {
-	const timestamp = object.LastModified instanceof Date ? object.LastModified : new Date(object.LastModified);
+	const timestamp = object.uploaded instanceof Date ? object.uploaded : new Date(object.uploaded);
 	return Number.isNaN(timestamp.getTime()) ? versionTimestamp(versionId) : timestamp.toISOString();
 }
 
@@ -163,9 +141,16 @@ function compareVersions(left, right) {
 }
 
 function encodeBase64Url(value) {
-	return Buffer.from(value, 'utf8').toString('base64url');
+	const bytes = new TextEncoder().encode(value);
+	let binary = '';
+	for (const byte of bytes) {
+		binary += String.fromCharCode(byte);
+	}
+	return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 }
 
 function decodeBase64Url(value) {
-	return Buffer.from(value, 'base64url').toString('utf8');
+	const base64 = value.replaceAll('-', '+').replaceAll('_', '/').padEnd(Math.ceil(value.length / 4) * 4, '=');
+	const binary = atob(base64);
+	return new TextDecoder().decode(Uint8Array.from(binary, (char) => char.charCodeAt(0)));
 }

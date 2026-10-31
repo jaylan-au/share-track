@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
-import { after, before, beforeEach, describe, it } from 'node:test';
-import { SignJWT } from 'jose';
-import { createApp } from '../src/index.js';
+import { describe, it, beforeEach } from 'node:test';
+import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from 'jose';
+import { createApp } from '../src/app.js';
 
-const jwtSecret = 'test-signing-secret-with-at-least-32-bytes';
+const teamDomain = 'test-team.cloudflareaccess.com';
+const audience = 'test-access-audience-tag';
+const { publicKey, privateKey } = await generateKeyPair('RS256');
+const keySet = createLocalJWKSet({
+	keys: [{ ...(await exportJWK(publicKey)), kid: 'test-key', alg: 'RS256', use: 'sig' }],
+});
+const access = { teamDomain, audience, keySet };
 const payload = {
 	ShareSecurities: [],
 	HoldingEntities: [],
@@ -14,8 +19,7 @@ const payload = {
 	ShareSecurityPriceRecords: [],
 };
 const records = new Map();
-let baseUrl;
-let server;
+let app;
 
 const storage = {
 	async listFiles(userId) {
@@ -56,43 +60,70 @@ const storage = {
 	},
 };
 
-async function tokenFor(userID) {
-	return new SignJWT({ userID })
-		.setProtectedHeader({ alg: 'HS256' })
+async function tokenFor(userID, { audience: tokenAudience = audience, issuer = `https://${teamDomain}` } = {}) {
+	return new SignJWT({ email: `${userID}@example.com` })
+		.setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
+		.setSubject(userID)
+		.setIssuer(issuer)
+		.setAudience(tokenAudience)
 		.setIssuedAt()
 		.setExpirationTime('5m')
-		.sign(new TextEncoder().encode(jwtSecret));
+		.sign(privateKey);
 }
 
-async function request(path, { userID = 'user-a', token, ...options } = {}) {
+async function request(path, { userID = 'user-a', token, assertion, ...options } = {}) {
 	const headers = new Headers(options.headers);
-	if (token !== false) {
-		headers.set('Authorization', `Bearer ${token ?? await tokenFor(userID)}`);
+	if (assertion !== undefined) {
+		headers.set('Cf-Access-Jwt-Assertion', assertion);
+	} else if (token !== false) {
+		headers.set('Cf-Access-Jwt-Assertion', await tokenFor(userID));
 	}
 	if (options.body && typeof options.body !== 'string') {
 		headers.set('Content-Type', 'application/json');
 		options.body = JSON.stringify(options.body);
 	}
-	return fetch(`${baseUrl}${path}`, { ...options, headers });
+	return app.request(path, { ...options, headers });
 }
 
-before(async () => {
-	const app = createApp({ storage, jwtSecret });
-	server = createServer(app);
-	await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-	baseUrl = `http://127.0.0.1:${server.address().port}`;
+beforeEach(() => {
+	records.clear();
+	app = createApp({ storage, access, allowedOrigins: ['http://localhost:5173'] });
 });
-
-after(async () => {
-	await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-});
-
-beforeEach(() => records.clear());
 
 describe('files API', () => {
-	it('requires a valid JWT', async () => {
+	it('requires a Cloudflare Access token', async () => {
 		const response = await request('/api/files', { token: false });
 		assert.equal(response.status, 401);
+	});
+
+	it('rejects tokens with the wrong audience or issuer', async () => {
+		const wrongAudience = await request('/api/files', {
+			assertion: await tokenFor('user-a', { audience: 'other-app' }),
+		});
+		assert.equal(wrongAudience.status, 401);
+		const wrongIssuer = await request('/api/files', {
+			assertion: await tokenFor('user-a', { issuer: 'https://attacker.cloudflareaccess.com' }),
+		});
+		assert.equal(wrongIssuer.status, 401);
+		const garbage = await request('/api/files', { assertion: 'not-a-jwt' });
+		assert.equal(garbage.status, 401);
+	});
+
+	it('returns 503 when Cloudflare Access settings are missing', async () => {
+		app = createApp({ storage, access: {}, allowedOrigins: [] });
+		const response = await request('/api/files');
+		assert.equal(response.status, 503);
+	});
+
+	it('does not require authentication for health checks or CORS preflight', async () => {
+		const health = await request('/health', { token: false });
+		assert.equal(health.status, 200);
+		const preflight = await request('/api/files', {
+			method: 'OPTIONS',
+			token: false,
+			headers: { Origin: 'http://localhost:5173' },
+		});
+		assert.equal(preflight.status, 204);
 	});
 
 	it('rejects invalid JSON syntax before storing', async () => {

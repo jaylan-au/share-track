@@ -1,0 +1,18 @@
+{
+	"name": "share-track-backend",
+	"main": "src/worker.js",
+	"compatibility_date": "2025-01-01",
+	// Cloudflare Access settings. Replace the placeholders before deploying.
+	// See backend-server/README.md for where to find these values.
+	"vars": {
+		"WEB_APP_ORIGINS": "http://localhost:5199",
+		"CF_ACCESS_TEAM_DOMAIN": "your-team.cloudflareaccess.com",
+		"CF_ACCESS_AUD": "replace-with-access-application-aud-tag",
+	},
+	"r2_buckets": [
+		{
+			"binding": "R2_BUCKET",
+			"bucket_name": "share-track",
+		},
+	],
+}

@@ -3,13 +3,19 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "node --watch src/index.js",
-		"start": "node src/index.js",
+		"dev": "node --watch src/server.js",
+		"dev:worker": "wrangler dev",
+		"deploy": "wrangler deploy",
+		"start": "node src/server.js",
 		"test": "node --test"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.850.0",
-		"express": "^5.1.0",
+		"@hono/node-server": "^2.1.5",
+		"hono": "^4.13.14",
 		"jose": "^6.0.11"
+	},
+	"devDependencies": {
+		"wrangler": "^4.156.0"
 	}
 }

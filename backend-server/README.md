@@ -1,30 +1,32 @@
 # Backend Server
 
-Express API for saving, listing, and retrieving Share Track JSON files in Cloudflare R2. All file endpoints require a signed JWT.
+Hono API for saving, listing, and retrieving Share Track JSON files in Cloudflare R2. The app is framework-agnostic Hono code, and it runs on two targets: Node (via `@hono/node-server`) and Cloudflare Workers. All file endpoints require a Cloudflare Access token.
 
 ## Requirements
 
 - Node.js 20 or later
-- An R2 bucket and S3 API credentials
-- A JWT signing secret shared with the service that issues the app's tokens
+- An R2 bucket. For Node, S3 API credentials. For Workers, the R2 binding in `wrangler.jsonc`.
+- A Cloudflare Access application protecting the hostname that serves this Worker (see [Deployment](#deployment-to-cloudflare-workers-behind-cloudflare-access))
 
 ## Environment Variables
 
-Set these in the server's runtime environment. The server reads `process.env` directly and does not load `.env` files.
+Node reads `process.env` directly and does not load `.env` files. Workers reads bindings and variables from `env`. Non-secret settings come from `vars` in `wrangler.jsonc`, and the R2 binding is also declared there.
 
-| Variable | Required | Description |
-| --- | --- | --- |
-| `JWT_SECRET` | Yes for file API | Secret used to verify HS256 bearer tokens. Must be at least 32 bytes. |
-| `CLOUDFLARE_ACCOUNT_ID` | Yes for R2 | Cloudflare account ID used to build the R2 S3 endpoint. |
-| `R2_ACCESS_KEY_ID` | Yes for R2 | R2 S3 API access key ID. |
-| `R2_SECRET_ACCESS_KEY` | Yes for R2 | R2 S3 API secret access key. |
-| `R2_BUCKET_NAME` | Yes for R2 | Existing bucket name where file versions are stored. |
-| `WEB_APP_ORIGINS` | For browser access | Comma-separated exact origins allowed by CORS, such as `http://localhost:5173,https://app.example.com`. |
-| `PORT` | No | HTTP listen port. Defaults to `3000`. |
+| Variable | Node | Workers | Description |
+| --- | --- | --- | --- |
+| `CF_ACCESS_TEAM_DOMAIN` | Yes | `vars` | Your Zero Trust team domain, such as `your-team.cloudflareaccess.com`. Access tokens are validated against its keys and issuer. |
+| `CF_ACCESS_AUD` | Yes | `vars` | The Application Audience (AUD) tag of the Access application that protects this server. |
+| `WEB_APP_ORIGINS` | For browser access | `vars` | Comma-separated exact origins allowed by CORS, such as `http://localhost:5173,https://app.example.com`. |
+| `CLOUDFLARE_ACCOUNT_ID` | Yes for R2 | Not used | Cloudflare account ID used to build the R2 S3 endpoint. |
+| `R2_ACCESS_KEY_ID` | Yes for R2 | Not used | R2 S3 API access key ID. |
+| `R2_SECRET_ACCESS_KEY` | Yes for R2 | Not used | R2 S3 API secret access key. |
+| `R2_BUCKET_NAME` | Yes for R2 | Not used | Existing bucket name where file versions are stored. |
+| `R2_BUCKET` | Not used | R2 binding | Bucket binding declared in `wrangler.jsonc`. |
+| `PORT` | No | Not used | HTTP listen port. Defaults to `3000`. |
 
-Configure the four R2 variables together. If any is missing, the server starts without storage and file routes respond with `503`; `/health` remains available. Create an R2 API token with object read and write access to this bucket. Keep the access key, secret, and JWT secret out of source control and browser code.
+On Node, configure the four R2 variables together. If any is missing, the server starts without storage and file routes respond with `503`; `/health` remains available. On Workers, a missing `R2_BUCKET` binding gives the same `503` behaviour. Create an R2 API token with object read and write access to this bucket. Keep the R2 access key and secret out of source control and browser code.
 
-The token verifier accepts HS256 tokens and requires a non-empty string `userID` claim (up to 256 characters). Use a cryptographically random `JWT_SECRET` of at least 32 bytes and configure the token issuer to sign with the same secret. Tokens should include an expiry; expired tokens are rejected.
+Authentication uses Cloudflare Access. The server does not issue or accept its own tokens. For each `/api/files` request it reads the `Cf-Access-Jwt-Assertion` header that Access attaches for signed-in users, then checks that the token is RS256, was issued by `https://<CF_ACCESS_TEAM_DOMAIN>`, has `CF_ACCESS_AUD` in its audience, and is unexpired. The user identity is the token's `sub` claim. If `CF_ACCESS_TEAM_DOMAIN` or `CF_ACCESS_AUD` is missing, file routes respond with `503`.
 
 ## Install and Run
 
@@ -41,19 +43,53 @@ Or from this directory:
 npm run dev
 ```
 
-The production command is `npm run start:server` from the root, or `npm start` from this directory. Run the backend tests with `npm test --workspace @share-track/backend-server` from the root.
+The production command is `npm run start:server` from the root, or `npm start` from this directory. The Node entry point is `src/server.js`. The Workers entry point is `src/worker.js`. Both build the same Hono app from `src/app.js`, and shared settings are read by `src/config.js`. Run the backend tests with `npm test --workspace @share-track/backend-server` from the root.
 
-For local development, export environment variables in the shell before starting the server. For deployment, configure them through the hosting provider's secret/environment-variable settings. Do not commit real credentials in an example env file.
+For local Node development, export environment variables in the shell before starting the server. For deployment, configure them through the hosting provider's secret/environment-variable settings. Do not commit real credentials in an example env file.
+
+### Cloudflare Workers
+
+The Worker, its R2 binding and its non-secret settings are in `wrangler.jsonc`. Commands are run from this directory:
+
+```sh
+npm run dev:worker   # local Worker via wrangler dev
+npm run deploy       # deploy to Cloudflare Workers
+```
+
+`wrangler dev` cannot pass Access checks, so authenticated routes return `401` locally unless a real Access token is supplied. Test authenticated behaviour against the deployed Worker behind Access.
+
+## Deployment to Cloudflare Workers behind Cloudflare Access
+
+Access handles sign-in at the edge. The Worker then verifies the signed Access token itself, so the Worker only trusts requests that came through Access. The steps below assume a Cloudflare account with Zero Trust enabled.
+
+1. **Create the R2 bucket.** Run `npx wrangler r2 bucket create share-track`, or create it in the dashboard under R2. Keep it private. If you choose another name, update `bucket_name` in `wrangler.jsonc`.
+2. **Sign in to Wrangler.** Run `npx wrangler login`, or set `CLOUDFLARE_API_TOKEN` to a token that can edit Workers and R2.
+3. **Find your team domain.** In the Zero Trust dashboard, the team domain is shown on the overview page (for example `your-team.cloudflareaccess.com`). Set it as `CF_ACCESS_TEAM_DOMAIN` in `wrangler.jsonc`.
+4. **Set the allowed web origin.** Set `WEB_APP_ORIGINS` in `wrangler.jsonc` to the deployed web app origin, such as `https://app.example.com`. Use exact origins, separated by commas.
+5. **Deploy once to get a hostname.** Run `npm run deploy`. Use a custom domain (a route on a zone in your account) for production so the hostname is stable. A `workers.dev` hostname also works for testing.
+6. **Create the Access application.** In Zero Trust, go to **Access controls > Applications > Add an application**, choose **Self-hosted**, and set the application domain to the Worker hostname. Give the application a session duration, then add an **Allow** policy that includes the people or groups who may use the app.
+7. **Copy the Audience (AUD) tag.** Open the application's settings and copy its **Application Audience (AUD) tag**. Set it as `CF_ACCESS_AUD` in `wrangler.jsonc`.
+8. **Redeploy.** Run `npm run deploy` again so the Worker picks up the Access settings.
+9. **Verify.**
+   - Open `https://<worker-host>/api/files` in a browser. Access should ask you to sign in, and after sign-in you should see `{"files":[]}`.
+   - Run `curl -i https://<worker-host>/api/files` without signing in. You should get an Access sign-in response, not file data.
+   - If the response is `503` with "Cloudflare Access authentication is not configured", check that `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` are set and redeployed.
+
+The `vars` in `wrangler.jsonc` are not secrets, so they can be committed. No Cloudflare secret is needed for the Worker, because the R2 binding is used directly.
+
+### Browser clients
+
+If the web app is served from a different origin than the API, the browser must send the Access cookie with each request. Use `fetch(url, { credentials: 'include' })`, and put the web app and API on the same parent domain (for example `app.example.com` and `api.example.com`) so the cookie is sent. The API already echoes allowed origins exactly and sets `Access-Control-Allow-Credentials: true`. If browser preflight requests are blocked by Access, enable the option that allows `OPTIONS` requests to bypass Access in the application's settings.
 
 ## R2 Object Naming and Versions
 
 Each uploaded version is a separate immutable R2 object. R2 bucket versioning is not used. The key structure is:
 
 ```text
-users/<base64url(userID)>/files/<fileId>/<base64url(fileName)>/<timestamp>-<uuid>.json
+users/<base64url(userId)>/files/<fileId>/<base64url(fileName)>/<timestamp>-<uuid>.json
 ```
 
-- `userID` comes only from the verified JWT, never from request JSON or query parameters. Its UTF-8 bytes are base64url encoded to keep the key segment safe and unambiguous.
+- `userId` is the `sub` claim of the verified Cloudflare Access token, never request JSON or query parameters. Its UTF-8 bytes are base64url encoded to keep the key segment safe and unambiguous. Changing identity provider or account changes the `sub`, so existing files are only visible to the same `sub`.
 - `fileId` is a server-generated UUID on the first upload. To save another version, the client sends that existing ID; the server checks that it belongs to the authenticated user.
 - `fileName` is a display name supplied at creation, trimmed, and limited to 120 characters. It is base64url encoded in the key, not used as a path. A file's name cannot be changed when saving a later version.
 - The final segment is a millisecond timestamp followed by a random UUID and `.json`. Every save gets a new key, so earlier versions remain available.
@@ -62,7 +98,7 @@ This layout allows listing by a user's prefix without scanning other users' keys
 
 ## API
 
-Send `Authorization: Bearer <JWT>` to every `/api/files` endpoint.
+Requests must reach the server through Cloudflare Access. Access attaches the `Cf-Access-Jwt-Assertion` header for signed-in users, and the server verifies it on every `/api/files` endpoint.
 
 ### List files
 
