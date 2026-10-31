@@ -16,6 +16,7 @@ interface AppHeaderProps {
 }
 
 const PAGE_LABELS: Record<Exclude<AppPage, 'price-records'>, string> = {
+    library: 'Portfolios',
     portfolio: 'Portfolio',
     admin: 'Admin',
     'share-lots': 'Share lots',

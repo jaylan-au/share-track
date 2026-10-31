@@ -5,10 +5,16 @@
 	// Cloudflare Access settings. Replace the placeholders before deploying.
 	// See backend-server/README.md for where to find these values.
 	"vars": {
-		"WEB_APP_ORIGINS": "http://localhost:5199",
+		"WEB_APP_ORIGINS": "https://share-track.lab.jaylancowie.com",
 		"CF_ACCESS_TEAM_DOMAIN": "your-team.cloudflareaccess.com",
 		"CF_ACCESS_AUD": "replace-with-access-application-aud-tag",
 	},
+	"routes": [
+		{
+			"pattern": "api.share-track.lab.jaylancowie.com",
+			"custom_domain": true,
+		},
+	],
 	"r2_buckets": [
 		{
 			"binding": "R2_BUCKET",

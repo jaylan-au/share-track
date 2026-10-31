@@ -1,0 +1,15 @@
+# Copy this file to backend-server/.dev.vars for local development.
+# `wrangler dev` reads .dev.vars and it overrides the vars in wrangler.jsonc.
+# .dev.vars is git-ignored; never put real secrets in the example file.
+
+# Skip Cloudflare Access locally and act as DEV_USER_ID.
+# Only takes effect when CF_ACCESS_TEAM_DOMAIN is empty.
+DEV_AUTH=true
+DEV_USER_ID=local-dev-user
+
+# Leave these empty for local development.
+CF_ACCESS_TEAM_DOMAIN=
+CF_ACCESS_AUD=
+
+# Origins allowed to call the API with credentials (the Vite dev server).
+WEB_APP_ORIGINS=http://localhost:5173,http://localhost:5199

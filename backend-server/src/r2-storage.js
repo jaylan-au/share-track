@@ -1,39 +1,48 @@
 let lastVersionMillis = 0;
+const TRASH_MARKER = '_trash';
+const MAX_DELETE_BATCH = 1000;
 
 /**
  * Creates file storage over an R2 bucket binding-shaped object:
  * `put(key, body)`, `get(key)` (resolving to an object with `text()` or null),
- * and `list({ prefix, cursor })` (resolving to `{ objects, truncated, cursor }`).
+ * `delete(keys)` (a key or array of keys), and `list({ prefix, cursor })`
+ * (resolving to `{ objects, truncated, cursor }`).
  * Workers pass the native R2 binding; Node passes an S3-backed bucket.
+ *
+ * Trashing a file writes a marker object (`<fileId>/_trash`) next to its
+ * versions instead of moving them, because R2 has no move operation.
  */
 export function createR2Storage(bucket) {
 	return {
 		async listFiles(userId) {
-			const objects = await listUserObjects(bucket, userId);
-			const files = new Map();
-			for (const object of objects) {
-				const parsed = parseObjectKey(object.key);
-				if (!parsed) {
-					continue;
-				}
-				const versions = files.get(parsed.fileId) ?? [];
-				versions.push({
-					fileName: parsed.fileName,
-					versionId: parsed.versionId,
-					createdAt: objectTimestamp(object, parsed.versionId),
-				});
-				files.set(parsed.fileId, versions);
-			}
-			return [...files.entries()].map(([id, versions]) => {
-				versions.sort(compareVersions);
-				return {
-					id,
-					fileName: versions[0].fileName,
-					latestVersionId: versions[0].versionId,
-					updatedAt: versions[0].createdAt,
-					versionCount: versions.length,
-				};
-			}).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+			const { files, trashed } = await readFileIndex(bucket, userId);
+			return summarizeFiles(files, (fileId) => !trashed.has(fileId));
+		},
+
+		async listTrash(userId) {
+			const { files, trashed } = await readFileIndex(bucket, userId);
+			return summarizeFiles(files, (fileId) => trashed.has(fileId))
+				.map((file) => ({ ...file, trashedAt: trashed.get(file.id) }));
+		},
+
+		async isTrashed(userId, fileId) {
+			return (await bucket.get(trashMarkerKey(userId, fileId))) !== null;
+		},
+
+		async trashFile(userId, fileId) {
+			await bucket.put(trashMarkerKey(userId, fileId), '', {
+				httpMetadata: { contentType: 'text/plain' },
+			});
+			return (await readTrashedAt(bucket, userId, fileId)) ?? new Date().toISOString();
+		},
+
+		async restoreFile(userId, fileId) {
+			await bucket.delete(trashMarkerKey(userId, fileId));
+		},
+
+		async deleteFile(userId, fileId) {
+			const objects = await listUserObjects(bucket, userId, fileId);
+			await deleteKeys(bucket, objects.map((object) => object.key));
 		},
 
 		async listVersions(userId, fileId) {
@@ -82,6 +91,75 @@ export function createR2Storage(bucket) {
 			}
 		},
 	};
+}
+
+async function readFileIndex(bucket, userId) {
+	const objects = await listUserObjects(bucket, userId);
+	const files = new Map();
+	const trashed = new Map();
+	for (const object of objects) {
+		const trashedFileId = parseTrashMarkerKey(object.key);
+		if (trashedFileId) {
+			trashed.set(trashedFileId, toIsoString(object.uploaded) ?? new Date(0).toISOString());
+			continue;
+		}
+		const parsed = parseObjectKey(object.key);
+		if (!parsed) {
+			continue;
+		}
+		const versions = files.get(parsed.fileId) ?? [];
+		versions.push({
+			fileName: parsed.fileName,
+			versionId: parsed.versionId,
+			createdAt: objectTimestamp(object, parsed.versionId),
+		});
+		files.set(parsed.fileId, versions);
+	}
+	return { files, trashed };
+}
+
+function summarizeFiles(files, include) {
+	return [...files.entries()]
+		.filter(([fileId]) => include(fileId))
+		.map(([id, versions]) => {
+			versions.sort(compareVersions);
+			return {
+				id,
+				fileName: versions[0].fileName,
+				latestVersionId: versions[0].versionId,
+				updatedAt: versions[0].createdAt,
+				versionCount: versions.length,
+			};
+		})
+		.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+}
+
+async function readTrashedAt(bucket, userId, fileId) {
+	const objects = await listUserObjects(bucket, userId, fileId);
+	const marker = objects.find((object) => parseTrashMarkerKey(object.key) === fileId);
+	return marker ? toIsoString(marker.uploaded) : null;
+}
+
+async function deleteKeys(bucket, keys) {
+	for (let index = 0; index < keys.length; index += MAX_DELETE_BATCH) {
+		await bucket.delete(keys.slice(index, index + MAX_DELETE_BATCH));
+	}
+}
+
+function trashMarkerKey(userId, fileId) {
+	return `${userPrefix(userId)}${fileId}/${TRASH_MARKER}`;
+}
+
+function parseTrashMarkerKey(key) {
+	const parts = typeof key === 'string' ? key.split('/') : [];
+	return parts.length === 5 && parts[0] === 'users' && parts[2] === 'files' && parts[4] === TRASH_MARKER
+		? parts[3]
+		: null;
+}
+
+function toIsoString(value) {
+	const date = value instanceof Date ? value : new Date(value);
+	return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 async function listUserObjects(bucket, userId, fileId) {

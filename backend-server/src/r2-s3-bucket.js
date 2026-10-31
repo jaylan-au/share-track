@@ -1,4 +1,5 @@
 import {
+	DeleteObjectsCommand,
 	GetObjectCommand,
 	ListObjectsV2Command,
 	PutObjectCommand,
@@ -7,7 +8,7 @@ import {
 
 /**
  * Node-only adapter that exposes an R2 bucket through the S3 API with the
- * same `put`/`get`/`list` shape as the Workers R2 binding.
+ * same `put`/`get`/`delete`/`list` shape as the Workers R2 binding.
  */
 export function createS3R2Bucket(client, bucketName) {
 	return {
@@ -17,6 +18,17 @@ export function createS3R2Bucket(client, bucketName) {
 				Key: key,
 				Body: body,
 				ContentType: options.httpMetadata?.contentType,
+			}));
+		},
+
+		async delete(keys) {
+			const keyList = Array.isArray(keys) ? keys : [keys];
+			if (keyList.length === 0) {
+				return;
+			}
+			await client.send(new DeleteObjectsCommand({
+				Bucket: bucketName,
+				Delete: { Objects: keyList.map((key) => ({ Key: key })), Quiet: true },
 			}));
 		},
 

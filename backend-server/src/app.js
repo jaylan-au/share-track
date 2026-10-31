@@ -13,10 +13,12 @@ const INVALID_JSON = Symbol('invalid JSON');
  * `access` holds the Cloudflare Access settings: `teamDomain` (for example
  * `your-team.cloudflareaccess.com`) and `audience` (the application AUD tag).
  * `keySet` is optional and only used by tests to supply a local JWKS.
+ * `devUserId`, when set, bypasses Access for local development only; config
+ * never sets it when an Access team domain is configured.
  */
-export function createApp({ storage, access, allowedOrigins = [] }) {
+export function createApp({ storage, access, allowedOrigins = [], devUserId = null }) {
 	const app = new Hono();
-	const auth = createAccessAuthMiddleware(access);
+	const auth = devUserId ? createDevAuthMiddleware(devUserId) : createAccessAuthMiddleware(access);
 	const allowedOriginSet = new Set(allowedOrigins);
 	const notConfigured = (c) => c.json({ error: 'File storage is not configured.' }, 503);
 
@@ -28,7 +30,7 @@ export function createApp({ storage, access, allowedOrigins = [] }) {
 			}
 			c.header('Access-Control-Allow-Origin', origin);
 			c.header('Vary', 'Origin');
-			c.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+			c.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
 			c.header('Access-Control-Allow-Headers', 'Content-Type');
 			c.header('Access-Control-Allow-Credentials', 'true');
 		}
@@ -77,6 +79,9 @@ export function createApp({ storage, access, allowedOrigins = [] }) {
 
 		const userId = c.get('userId');
 		const id = fileId ?? crypto.randomUUID();
+		if (fileId && await storage.isTrashed(userId, id)) {
+			return c.json({ error: 'This portfolio is in the trash. Restore it before saving.' }, 409);
+		}
 		const existingVersions = fileId ? await storage.listVersions(userId, id) : [];
 		if (fileId && existingVersions.length === 0) {
 			return c.body(null, 404);
@@ -92,6 +97,46 @@ export function createApp({ storage, access, allowedOrigins = [] }) {
 			data,
 		});
 		return c.json({ id, ...savedVersion }, 201);
+	});
+
+	app.get('/api/trash', auth, async (c) => {
+		if (!storage) {
+			return notConfigured(c);
+		}
+		return c.json({ files: await storage.listTrash(c.get('userId')) });
+	});
+
+	app.post('/api/files/:fileId/trash', auth, async (c) => {
+		const found = await resolveOwnedFile(c, storage);
+		if (found.response) {
+			return found.response;
+		}
+		const trashedAt = await storage.trashFile(c.get('userId'), found.fileId);
+		return c.json({ id: found.fileId, trashedAt });
+	});
+
+	app.post('/api/files/:fileId/restore', auth, async (c) => {
+		const found = await resolveOwnedFile(c, storage);
+		if (found.response) {
+			return found.response;
+		}
+		if (!(await storage.isTrashed(c.get('userId'), found.fileId))) {
+			return c.json({ error: 'This portfolio is not in the trash.' }, 409);
+		}
+		await storage.restoreFile(c.get('userId'), found.fileId);
+		return c.json({ id: found.fileId });
+	});
+
+	app.delete('/api/files/:fileId', auth, async (c) => {
+		const found = await resolveOwnedFile(c, storage);
+		if (found.response) {
+			return found.response;
+		}
+		if (!(await storage.isTrashed(c.get('userId'), found.fileId))) {
+			return c.json({ error: 'Move this portfolio to the trash before deleting it permanently.' }, 409);
+		}
+		await storage.deleteFile(c.get('userId'), found.fileId);
+		return c.body(null, 204);
 	});
 
 	app.get('/api/files/:fileId/versions', auth, async (c) => {
@@ -141,6 +186,36 @@ export function createApp({ storage, access, allowedOrigins = [] }) {
 	});
 
 	return app;
+}
+
+/**
+ * Resolves `:fileId` to an existing file owned by the caller. Returns
+ * `{ fileId }`, or `{ response }` with the error to send.
+ */
+async function resolveOwnedFile(c, storage) {
+	if (!storage) {
+		return { response: c.json({ error: 'File storage is not configured.' }, 503) };
+	}
+	const fileId = c.req.param('fileId');
+	if (!FILE_ID_PATTERN.test(fileId)) {
+		return { response: c.json({ error: 'Invalid file ID.' }, 400) };
+	}
+	const versions = await storage.listVersions(c.get('userId'), fileId);
+	if (versions.length === 0) {
+		return { response: c.body(null, 404) };
+	}
+	return { fileId };
+}
+
+/**
+ * Local development only. Used when no Cloudflare Access team domain is set,
+ * so `wrangler dev` and `node` can run without an Access token.
+ */
+function createDevAuthMiddleware(devUserId) {
+	return async (c, next) => {
+		c.set('userId', devUserId);
+		await next();
+	};
 }
 
 /**

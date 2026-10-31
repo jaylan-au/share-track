@@ -88,8 +88,27 @@ export interface EtfTaxStatementTransactionInput {
 }
 
 export type PortfolioGroupBy = 'security' | 'security-entity';
-export type AppPage = 'portfolio' | 'admin' | 'share-lots' | 'dividends' | 'activity-report' | 'price-records';
+export type AppPage = 'library' | 'portfolio' | 'admin' | 'share-lots' | 'dividends' | 'activity-report' | 'price-records';
 export type FlashMessageType = 'success' | 'error';
+
+export interface PortfolioSummary {
+    id: string;
+    fileName: string;
+    latestVersionId: string;
+    updatedAt: string;
+    versionCount: number;
+}
+
+export interface TrashedPortfolioSummary extends PortfolioSummary {
+    trashedAt: string;
+}
+
+export type LibraryStatus = 'loading' | 'ready' | 'signin-required' | 'error';
+
+export interface ActivePortfolio {
+    id: string;
+    fileName: string;
+}
 
 export interface AppState {
     isLoading: boolean;
@@ -112,4 +131,9 @@ export interface AppState {
     portfolioGroupBy: PortfolioGroupBy;
     currentPage: AppPage;
     selectedSecurityCode: string | null;
+    libraryStatus: LibraryStatus;
+    libraryError: string | null;
+    portfolios: PortfolioSummary[];
+    trashedPortfolios: TrashedPortfolioSummary[];
+    activePortfolio: ActivePortfolio | null;
 }

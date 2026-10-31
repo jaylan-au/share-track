@@ -21,15 +21,41 @@ const payload = {
 const records = new Map();
 let app;
 
+function summarize([id, record]) {
+	return {
+		id,
+		fileName: record.fileName,
+		latestVersionId: record.versions.at(-1).versionId,
+		updatedAt: record.versions.at(-1).createdAt,
+		versionCount: record.versions.length,
+	};
+}
+
 const storage = {
 	async listFiles(userId) {
-		return [...records.values()].filter((record) => record.userId === userId).map(({ id, fileName, versions }) => ({
-			id,
-			fileName,
-			latestVersionId: versions.at(-1).versionId,
-			updatedAt: versions.at(-1).createdAt,
-			versionCount: versions.length,
-		}));
+		return [...records.entries()]
+			.filter(([, record]) => record.userId === userId && !record.trashedAt)
+			.map(summarize);
+	},
+	async listTrash(userId) {
+		return [...records.entries()]
+			.filter(([, record]) => record.userId === userId && record.trashedAt)
+			.map(([id, record]) => ({ ...summarize([id, record]), trashedAt: record.trashedAt }));
+	},
+	async isTrashed(userId, fileId) {
+		const record = records.get(fileId);
+		return Boolean(record && record.userId === userId && record.trashedAt);
+	},
+	async trashFile(userId, fileId) {
+		const record = records.get(fileId);
+		record.trashedAt = new Date(1_700_000_100_000).toISOString();
+		return record.trashedAt;
+	},
+	async restoreFile(userId, fileId) {
+		delete records.get(fileId).trashedAt;
+	},
+	async deleteFile(userId, fileId) {
+		records.delete(fileId);
 	},
 	async listVersions(userId, fileId) {
 		return records.get(fileId)?.userId === userId ? records.get(fileId).versions : [];
@@ -173,5 +199,77 @@ describe('files API', () => {
 		assert.deepEqual(await oldVersionResponse.json(), payload);
 		const otherUserResponse = await request(`/api/files/${first.id}`, { userID: 'user-b' });
 		assert.equal(otherUserResponse.status, 404);
+	});
+
+	it('moves a portfolio to trash, hides it from the list, and restores it', async () => {
+		const created = await (await request('/api/files', {
+			method: 'POST',
+			body: { fileName: 'portfolio.json', data: payload },
+		})).json();
+
+		const trashResponse = await request(`/api/files/${created.id}/trash`, { method: 'POST' });
+		assert.equal(trashResponse.status, 200);
+		assert.ok((await trashResponse.json()).trashedAt);
+
+		const { files } = await (await request('/api/files')).json();
+		assert.equal(files.length, 0);
+		const { files: trashed } = await (await request('/api/trash')).json();
+		assert.equal(trashed.length, 1);
+		assert.equal(trashed[0].id, created.id);
+
+		const saveResponse = await request('/api/files', {
+			method: 'POST',
+			body: { fileId: created.id, fileName: 'portfolio.json', data: payload },
+		});
+		assert.equal(saveResponse.status, 409);
+
+		const restoreResponse = await request(`/api/files/${created.id}/restore`, { method: 'POST' });
+		assert.equal(restoreResponse.status, 200);
+		const restoredList = await (await request('/api/files')).json();
+		assert.equal(restoredList.files.length, 1);
+	});
+
+	it('only permanently deletes portfolios that are already in trash', async () => {
+		const created = await (await request('/api/files', {
+			method: 'POST',
+			body: { fileName: 'portfolio.json', data: payload },
+		})).json();
+
+		const activeDelete = await request(`/api/files/${created.id}`, { method: 'DELETE' });
+		assert.equal(activeDelete.status, 409);
+		assert.equal(records.size, 1);
+
+		await request(`/api/files/${created.id}/trash`, { method: 'POST' });
+		const deleteResponse = await request(`/api/files/${created.id}`, { method: 'DELETE' });
+		assert.equal(deleteResponse.status, 204);
+		assert.equal(records.size, 0);
+	});
+
+	it('returns 404 for trash actions on unknown or other users\' portfolios', async () => {
+		const created = await (await request('/api/files', {
+			method: 'POST',
+			body: { fileName: 'portfolio.json', data: payload },
+		})).json();
+
+		const missing = await request(`/api/files/${crypto.randomUUID()}/trash`, { method: 'POST' });
+		assert.equal(missing.status, 404);
+		const otherUser = await request(`/api/files/${created.id}/trash`, { method: 'POST', userID: 'user-b' });
+		assert.equal(otherUser.status, 404);
+		assert.equal(records.get(created.id).trashedAt, undefined);
+	});
+});
+
+describe('local dev auth', () => {
+	it('uses the configured dev user without a Cloudflare Access token', async () => {
+		app = createApp({ storage, access: {}, allowedOrigins: [], devUserId: 'local-dev-user' });
+		const saved = await app.request('/api/files', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ fileName: 'portfolio.json', data: payload }),
+		});
+		assert.equal(saved.status, 201);
+		const listed = await (await app.request('/api/files')).json();
+		assert.equal(listed.files.length, 1);
+		assert.equal(records.get(listed.files[0].id).userId, 'local-dev-user');
 	});
 });

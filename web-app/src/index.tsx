@@ -14,7 +14,10 @@ import { DividendsPage } from './dividends-page';
 import { ShareLotsPage } from './share-lots-page';
 import { ActivityReportPage } from './activity-report-page';
 import { PriceRecordsPage } from './price-records-page';
+import { PortfolioLibraryPage } from './portfolio-library-page';
+import { getPortfolioData, listPortfolios, listTrashedPortfolios, PortfolioApiError, restorePortfolio, deletePortfolioPermanently, savePortfolio, trashPortfolio } from './api/files-api';
 import {
+    ActivePortfolio,
     AppPage,
     AppState,
     BulkPriceUpdateFormState,
@@ -24,9 +27,11 @@ import {
     EtfTaxStatementTransactionInput,
     PortfolioGroupBy,
     PortfolioRow,
+    PortfolioSummary,
     SellLotAllocation,
     SellTransactionFormState,
     FlashMessageType,
+    TrashedPortfolioSummary,
 } from './types';
 
 type ModalKey = 'isBuyModalOpen' | 'isSellModalOpen' | 'isDataModalOpen' | 'isBulkPriceModalOpen' | 'isBulkTransactionModalOpen';
@@ -54,12 +59,22 @@ class App extends Component<{}, AppState> {
         isBulkPriceModalOpen: false,
         isBulkTransactionModalOpen: false,
         portfolioGroupBy: 'security-entity',
-        currentPage: 'portfolio',
+        currentPage: 'library',
         selectedSecurityCode: null,
+        libraryStatus: 'loading',
+        libraryError: null,
+        portfolios: [],
+        trashedPortfolios: [],
+        activePortfolio: null,
     };
 
     componentDidMount(): void {
+        window.addEventListener('beforeunload', this.handleBeforeUnload);
         this.loadPortfolioData();
+    }
+
+    componentWillUnmount(): void {
+        window.removeEventListener('beforeunload', this.handleBeforeUnload);
     }
 
     private createEmptyBuyFormState(): BuyTransactionFormState {
@@ -123,6 +138,10 @@ class App extends Component<{}, AppState> {
     }
 
     private navigateTo = (page: AppPage): void => {
+        if (page === 'library') {
+            this.showLibrary();
+            return;
+        }
         this.setState({ currentPage: page });
     };
 
@@ -180,7 +199,160 @@ class App extends Component<{}, AppState> {
 
     private loadPortfolioData(): void {
         this.applyLoadedData(DataManager.fromPayload({}));
+        this.refreshLibrary();
     }
+
+    private refreshLibrary = async (): Promise<void> => {
+        this.setState({ libraryStatus: 'loading', libraryError: null });
+
+        try {
+            const [portfolios, trashedPortfolios] = await Promise.all([listPortfolios(), listTrashedPortfolios()]);
+            this.setState({ libraryStatus: 'ready', portfolios, trashedPortfolios });
+        } catch (error) {
+            if (error instanceof PortfolioApiError && error.kind === 'auth') {
+                this.setState({ libraryStatus: 'signin-required', libraryError: null });
+                return;
+            }
+            this.setState({
+                libraryStatus: 'error',
+                libraryError: error instanceof Error ? error.message : 'Unable to load your portfolios.',
+            });
+        }
+    };
+
+    private handleBeforeUnload = (event: BeforeUnloadEvent): void => {
+        if (!this.state.hasUnsavedChanges) {
+            return;
+        }
+        event.preventDefault();
+        event.returnValue = '';
+    };
+
+    private confirmDiscardChanges(): boolean {
+        if (!this.state.hasUnsavedChanges) {
+            return true;
+        }
+        return window.confirm('You have unsaved changes to the current portfolio. Discard them?');
+    }
+
+    private showLibrary = (): void => {
+        this.setState({ currentPage: 'library' });
+        this.refreshLibrary();
+    };
+
+    private startNewPortfolio = (): void => {
+        if (!this.confirmDiscardChanges()) {
+            return;
+        }
+        this.applyLoadedData(DataManager.fromPayload({}));
+        this.setState({ currentPage: 'portfolio', activePortfolio: null });
+        this.showFlashMessage('New portfolio created. Use Save portfolio to store it.', 'success');
+    };
+
+    private openPortfolio = async (fileId: string): Promise<void> => {
+        if (!this.confirmDiscardChanges()) {
+            return;
+        }
+
+        const summary = this.state.portfolios.find((portfolio) => portfolio.id === fileId);
+        try {
+            const payload = await getPortfolioData(fileId);
+            this.applyLoadedData(DataManager.fromPayload(payload as any));
+            this.setState({
+                currentPage: 'portfolio',
+                activePortfolio: { id: fileId, fileName: summary?.fileName ?? 'Portfolio' },
+            });
+        } catch (error) {
+            this.setState({
+                libraryError: error instanceof Error ? error.message : 'Unable to open the portfolio.',
+            });
+        }
+    };
+
+    private savePortfolioToLibrary = async (asCopy: boolean): Promise<void> => {
+        if (!this.dataManager) {
+            return;
+        }
+
+        const active: ActivePortfolio | null = this.state.activePortfolio;
+        const updateExisting = Boolean(active) && !asCopy;
+        let fileName = active?.fileName ?? '';
+
+        if (!updateExisting) {
+            const suggestedName = asCopy && active ? `${active.fileName.replace(/\.json$/i, '')} (copy).json` : 'My portfolio.json';
+            const entered = window.prompt('Name for this portfolio (saved as a .json file)', suggestedName);
+            if (!entered || !entered.trim()) {
+                return;
+            }
+            fileName = entered.trim().toLowerCase().endsWith('.json') ? entered.trim() : `${entered.trim()}.json`;
+        }
+
+        try {
+            const saved = await savePortfolio({
+                fileId: updateExisting && active ? active.id : undefined,
+                fileName,
+                data: this.buildPayload(),
+            });
+            this.setState({
+                hasUnsavedChanges: false,
+                activePortfolio: { id: saved.id, fileName: saved.fileName },
+            });
+            this.showFlashMessage(`Saved "${saved.fileName}".`, 'success');
+            this.refreshLibrary();
+        } catch (error) {
+            this.showFlashMessage(error instanceof Error ? error.message : 'Unable to save the portfolio.', 'error');
+        }
+    };
+
+    private trashPortfolio = async (fileId: string): Promise<void> => {
+        const summary = this.state.portfolios.find((portfolio) => portfolio.id === fileId);
+        if (!window.confirm(`Move "${summary?.fileName ?? 'this portfolio'}" to the trash? You can restore it later.`)) {
+            return;
+        }
+
+        try {
+            await trashPortfolio(fileId);
+            this.setState({
+                activePortfolio: this.state.activePortfolio?.id === fileId ? null : this.state.activePortfolio,
+            });
+            this.showFlashMessage('Moved to trash.', 'success');
+            this.refreshLibrary();
+        } catch (error) {
+            this.setState({ libraryError: error instanceof Error ? error.message : 'Unable to move the portfolio to trash.' });
+        }
+    };
+
+    private restoreTrashedPortfolio = async (fileId: string): Promise<void> => {
+        try {
+            await restorePortfolio(fileId);
+            this.showFlashMessage('Portfolio restored.', 'success');
+            this.refreshLibrary();
+        } catch (error) {
+            this.setState({ libraryError: error instanceof Error ? error.message : 'Unable to restore the portfolio.' });
+        }
+    };
+
+    private deleteTrashedPortfolio = async (fileId: string): Promise<void> => {
+        const summary = this.state.trashedPortfolios.find((portfolio) => portfolio.id === fileId);
+        if (!window.confirm(`Permanently delete "${summary?.fileName ?? 'this portfolio'}"? All of its saved versions will be removed and this cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            await deletePortfolioPermanently(fileId);
+            this.showFlashMessage('Portfolio permanently deleted.', 'success');
+            this.refreshLibrary();
+        } catch (error) {
+            this.setState({ libraryError: error instanceof Error ? error.message : 'Unable to delete the portfolio.' });
+        }
+    };
+
+    private handleLibraryImport = (file: File | null): void => {
+        if (!file || !this.confirmDiscardChanges()) {
+            return;
+        }
+        this.handleDataUpload(file);
+    };
 
     private getDefaultFormState(securities: ShareSecurity[], holdingEntities: HoldingEntity[]): BuyTransactionFormState {
         return {
@@ -597,7 +769,7 @@ class App extends Component<{}, AppState> {
                 const parsedData = JSON.parse(fileContents) as any;
                 const manager = DataManager.fromPayload(parsedData);
                 this.applyLoadedData(manager);
-                this.setState({ isDataModalOpen: false, error: null });
+                this.setState({ isDataModalOpen: false, error: null, currentPage: 'portfolio', activePortfolio: null });
             } catch (error) {
                 this.setState({
                     error: error instanceof Error ? error.message : 'Unable to parse the uploaded data file.',
@@ -612,12 +784,12 @@ class App extends Component<{}, AppState> {
         reader.readAsText(file);
     };
 
-    private downloadCurrentData = (): void => {
+    private buildPayload(): Record<string, unknown[]> {
         if (!this.dataManager) {
-            return;
+            throw new Error('Portfolio data is not loaded.');
         }
 
-        const payload = {
+        return {
             ShareSecurities: (this.dataManager.getTable('ShareSecurity')?.getAll() ?? []).map((item: any) => ({ ...item })),
             HoldingEntities: (this.dataManager.getTable('HoldingEntity')?.getAll() ?? []).map((item: any) => ({ ...item })),
             ShareLots: (this.dataManager.getTable('ShareLot')?.getAll() ?? []).map((item: any) => ({ ...item })),
@@ -645,6 +817,14 @@ class App extends Component<{}, AppState> {
             }),
             ShareSecurityPriceRecords: (this.dataManager.getTable('ShareSecurityPriceRecord')?.getAll() ?? []).map((item: any) => ({ ...item })),
         };
+    }
+
+    private downloadCurrentData = (): void => {
+        if (!this.dataManager) {
+            return;
+        }
+
+        const payload = this.buildPayload();
 
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -1025,6 +1205,27 @@ class App extends Component<{}, AppState> {
         const { isLoading, portfolioRows, error, flashMessage, flashMessageType, hasUnsavedChanges, securities, holdingEntities, form, sellForm, bulkPriceForm, bulkTransactionForm, isBuyModalOpen, isSellModalOpen, isDataModalOpen, isBulkPriceModalOpen, isBulkTransactionModalOpen, portfolioGroupBy, currentPage, selectedSecurityCode } = this.state;
         const activeSellForm = this.syncSellLotAllocations(sellForm, this.dataManager, sellForm.lotAllocations);
 
+        if (currentPage === 'library') {
+            return (
+                <PortfolioLibraryPage
+                    status={this.state.libraryStatus}
+                    error={this.state.libraryError}
+                    flashMessage={this.state.flashMessage}
+                    flashMessageType={this.state.flashMessageType}
+                    portfolios={this.state.portfolios}
+                    trashedPortfolios={this.state.trashedPortfolios}
+                    activePortfolioId={this.state.activePortfolio?.id ?? null}
+                    onRefresh={this.refreshLibrary}
+                    onOpen={this.openPortfolio}
+                    onNewPortfolio={this.startNewPortfolio}
+                    onImportFile={this.handleLibraryImport}
+                    onTrash={this.trashPortfolio}
+                    onRestore={this.restoreTrashedPortfolio}
+                    onDeletePermanently={this.deleteTrashedPortfolio}
+                />
+            );
+        }
+
         if (currentPage === 'admin') {
             return (
                 <AdminPage
@@ -1123,7 +1324,7 @@ class App extends Component<{}, AppState> {
                     </div>
                 ) : null}
                 <AppHeader
-                    title="Portfolio"
+                    title={this.state.activePortfolio?.fileName ?? 'Portfolio (not saved)'}
                     hasUnsavedChanges={hasUnsavedChanges}
                     actions={
                         <>
@@ -1136,7 +1337,8 @@ class App extends Component<{}, AppState> {
                         </>
                     }
                     navItems={[
-                        ...getPageNavItems((page) => this.setState({ currentPage: page }), 'portfolio'),
+                        ...getPageNavItems(this.navigateTo, 'portfolio'),
+                        { label: 'Save as new copy', onSelect: () => this.savePortfolioToLibrary(true) },
                         { label: 'Upload data', onSelect: () => this.setModalVisibility('isDataModalOpen', true) },
                         { label: 'Update prices', onSelect: () => this.setModalVisibility('isBulkPriceModalOpen', true) },
                         { label: 'Bulk load transactions', onSelect: () => this.setModalVisibility('isBulkTransactionModalOpen', true) },
