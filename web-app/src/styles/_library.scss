@@ -154,3 +154,34 @@
     font-size: 0.8rem;
     font-weight: 600;
 }
+
+.name-input-row {
+    display: flex;
+    align-items: stretch;
+
+    input {
+        flex: 1;
+        min-width: 0;
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+    }
+}
+
+.name-input-suffix {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 12px;
+    border: 1px solid $color-border-strong;
+    border-left: 0;
+    border-radius: 0 $radius-sm $radius-sm 0;
+    background: $color-surface-muted;
+    color: $color-text-muted;
+    font-size: 0.9rem;
+}
+
+.name-input-error {
+    margin: 8px 0 0;
+    color: $color-accent;
+    font-size: 0.85rem;
+    font-weight: 600;
+}

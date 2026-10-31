@@ -1,6 +1,7 @@
 import { Component, render } from 'preact';
 import './style.scss';
-import { AppHeader, getPageNavItems } from './components/app-header';
+import { PortfolioNameModal } from './components/portfolio-name-modal';
+import { AppHeader, getPageNavItems, NavItem } from './components/app-header';
 import { BuyTransactionModal } from './components/buy-transaction-modal';
 import { BulkPriceModal } from './components/bulk-price-modal';
 import { BulkTransactionModal } from './components/bulk-transaction-modal';
@@ -15,7 +16,9 @@ import { ShareLotsPage } from './share-lots-page';
 import { ActivityReportPage } from './activity-report-page';
 import { PriceRecordsPage } from './price-records-page';
 import { PortfolioLibraryPage } from './portfolio-library-page';
-import { getPortfolioData, listPortfolios, listTrashedPortfolios, PortfolioApiError, restorePortfolio, deletePortfolioPermanently, savePortfolio, trashPortfolio } from './api/files-api';
+import { SplashPage } from './splash-page';
+import { onlineFilesEnabled } from './config';
+import { getPortfolioData, getSignInUrl, listPortfolios, listTrashedPortfolios, PortfolioApiError, restorePortfolio, deletePortfolioPermanently, savePortfolio, trashPortfolio } from './api/files-api';
 import {
     ActivePortfolio,
     AppPage,
@@ -59,13 +62,16 @@ class App extends Component<{}, AppState> {
         isBulkPriceModalOpen: false,
         isBulkTransactionModalOpen: false,
         portfolioGroupBy: 'security-entity',
-        currentPage: 'library',
+        currentPage: 'portfolio',
         selectedSecurityCode: null,
+        authStatus: onlineFilesEnabled ? 'checking' : 'signed-out',
+        showSplash: onlineFilesEnabled,
         libraryStatus: 'loading',
         libraryError: null,
         portfolios: [],
         trashedPortfolios: [],
         activePortfolio: null,
+        nameDialog: null,
     };
 
     componentDidMount(): void {
@@ -139,7 +145,11 @@ class App extends Component<{}, AppState> {
 
     private navigateTo = (page: AppPage): void => {
         if (page === 'library') {
-            this.showLibrary();
+            if (this.state.authStatus === 'signed-in') {
+                this.showLibrary();
+            } else {
+                this.setState({ showSplash: true });
+            }
             return;
         }
         this.setState({ currentPage: page });
@@ -199,18 +209,49 @@ class App extends Component<{}, AppState> {
 
     private loadPortfolioData(): void {
         this.applyLoadedData(DataManager.fromPayload({}));
-        this.refreshLibrary();
+        if (onlineFilesEnabled) {
+            this.checkSignIn();
+        }
     }
+
+    private checkSignIn = async (): Promise<void> => {
+        this.setState({ authStatus: 'checking', libraryStatus: 'loading', libraryError: null });
+
+        try {
+            const [portfolios, trashedPortfolios] = await Promise.all([listPortfolios(), listTrashedPortfolios()]);
+            this.setState((state) => ({
+                authStatus: 'signed-in',
+                showSplash: false,
+                currentPage: state.showSplash ? 'library' : state.currentPage,
+                libraryStatus: 'ready',
+                portfolios,
+                trashedPortfolios,
+            }));
+        } catch {
+            this.setState({ authStatus: 'signed-out', libraryStatus: 'signin-required', libraryError: null });
+        }
+    };
+
+    private openSignIn = (): void => {
+        window.open(getSignInUrl(), '_blank', 'noopener');
+    };
+
+    private continueOffline = (): void => {
+        this.setState((state) => ({
+            showSplash: false,
+            currentPage: state.currentPage === 'library' ? 'portfolio' : state.currentPage,
+        }));
+    };
 
     private refreshLibrary = async (): Promise<void> => {
         this.setState({ libraryStatus: 'loading', libraryError: null });
 
         try {
             const [portfolios, trashedPortfolios] = await Promise.all([listPortfolios(), listTrashedPortfolios()]);
-            this.setState({ libraryStatus: 'ready', portfolios, trashedPortfolios });
+            this.setState({ authStatus: 'signed-in', libraryStatus: 'ready', portfolios, trashedPortfolios });
         } catch (error) {
             if (error instanceof PortfolioApiError && error.kind === 'auth') {
-                this.setState({ libraryStatus: 'signin-required', libraryError: null });
+                this.setState({ authStatus: 'signed-out', libraryStatus: 'signin-required', libraryError: null });
                 return;
             }
             this.setState({
@@ -275,21 +316,32 @@ class App extends Component<{}, AppState> {
         }
 
         const active: ActivePortfolio | null = this.state.activePortfolio;
-        const updateExisting = Boolean(active) && !asCopy;
-        let fileName = active?.fileName ?? '';
+        if (active && !asCopy) {
+            await this.persistPortfolio(active.fileName, active.id);
+            return;
+        }
 
-        if (!updateExisting) {
-            const suggestedName = asCopy && active ? `${active.fileName.replace(/\.json$/i, '')} (copy).json` : 'My portfolio.json';
-            const entered = window.prompt('Name for this portfolio (saved as a .json file)', suggestedName);
-            if (!entered || !entered.trim()) {
-                return;
-            }
-            fileName = entered.trim().toLowerCase().endsWith('.json') ? entered.trim() : `${entered.trim()}.json`;
+        const suggestedName = asCopy && active ? `${active.fileName.replace(/\.json$/i, '')} (copy)` : 'My portfolio';
+        this.setState({ nameDialog: { isCopy: asCopy, suggestedName } });
+    };
+
+    private confirmPortfolioName = async (name: string): Promise<void> => {
+        this.setState({ nameDialog: null });
+        await this.persistPortfolio(`${name.replace(/\.json$/i, '')}.json`);
+    };
+
+    private closeNameDialog = (): void => {
+        this.setState({ nameDialog: null });
+    };
+
+    private persistPortfolio = async (fileName: string, fileId?: string): Promise<void> => {
+        if (!this.dataManager) {
+            return;
         }
 
         try {
             const saved = await savePortfolio({
-                fileId: updateExisting && active ? active.id : undefined,
+                fileId,
                 fileName,
                 data: this.buildPayload(),
             });
@@ -302,6 +354,17 @@ class App extends Component<{}, AppState> {
         } catch (error) {
             this.showFlashMessage(error instanceof Error ? error.message : 'Unable to save the portfolio.', 'error');
         }
+    };
+
+    private canSaveOnline(): boolean {
+        return onlineFilesEnabled && this.state.authStatus === 'signed-in';
+    }
+
+    private headerSaveAction = (): (() => void) | undefined => {
+        if (!this.canSaveOnline()) {
+            return undefined;
+        }
+        return () => this.savePortfolioToLibrary(false);
     };
 
     private trashPortfolio = async (fileId: string): Promise<void> => {
@@ -1201,9 +1264,55 @@ class App extends Component<{}, AppState> {
         });
     };
 
+    private getOnlineNavItems(): NavItem[] {
+        if (!onlineFilesEnabled) {
+            return [];
+        }
+
+        if (this.state.authStatus !== 'signed-in') {
+            return [{ label: 'Sign in for online portfolios', onSelect: () => this.setState({ showSplash: true }) }];
+        }
+
+        const saveItems: NavItem[] = this.state.activePortfolio
+            ? [
+                { label: 'Save portfolio', onSelect: () => this.savePortfolioToLibrary(false) },
+                { label: 'Save as new copy', onSelect: () => this.savePortfolioToLibrary(true) },
+            ]
+            : [{ label: 'Save to online portfolios', onSelect: () => this.savePortfolioToLibrary(false) }];
+        return saveItems;
+    }
+
     render() {
+        return (
+            <>
+                {this.renderPage()}
+                {this.state.nameDialog ? (
+                    <PortfolioNameModal
+                        key={this.state.nameDialog.suggestedName}
+                        title={this.state.nameDialog.isCopy ? 'Save as new copy' : 'Save to online portfolios'}
+                        initialName={this.state.nameDialog.suggestedName}
+                        onSubmit={this.confirmPortfolioName}
+                        onClose={this.closeNameDialog}
+                    />
+                ) : null}
+            </>
+        );
+    }
+
+    private renderPage() {
         const { isLoading, portfolioRows, error, flashMessage, flashMessageType, hasUnsavedChanges, securities, holdingEntities, form, sellForm, bulkPriceForm, bulkTransactionForm, isBuyModalOpen, isSellModalOpen, isDataModalOpen, isBulkPriceModalOpen, isBulkTransactionModalOpen, portfolioGroupBy, currentPage, selectedSecurityCode } = this.state;
         const activeSellForm = this.syncSellLotAllocations(sellForm, this.dataManager, sellForm.lotAllocations);
+
+        if (onlineFilesEnabled && this.state.showSplash) {
+            return (
+                <SplashPage
+                    authStatus={this.state.authStatus}
+                    onSignIn={this.openSignIn}
+                    onCheckSignIn={this.checkSignIn}
+                    onContinueOffline={this.continueOffline}
+                />
+            );
+        }
 
         if (currentPage === 'library') {
             return (
@@ -1222,6 +1331,7 @@ class App extends Component<{}, AppState> {
                     onTrash={this.trashPortfolio}
                     onRestore={this.restoreTrashedPortfolio}
                     onDeletePermanently={this.deleteTrashedPortfolio}
+                    onBack={() => this.setState({ currentPage: 'portfolio' })}
                 />
             );
         }
@@ -1233,6 +1343,7 @@ class App extends Component<{}, AppState> {
                     holdingEntities={holdingEntities}
                     hasUnsavedChanges={hasUnsavedChanges}
                     onSaveSecurity={this.handleSaveSecurity}
+                    onSave={this.headerSaveAction()}
                     onSaveHoldingEntity={this.handleSaveHoldingEntity}
                     onRemoveSecurity={this.handleRemoveSecurity}
                     onRemoveHoldingEntity={this.handleRemoveHoldingEntity}
@@ -1255,6 +1366,7 @@ class App extends Component<{}, AppState> {
                     holdingEntities={holdingEntities}
                     onDeleteShareLot={this.handleDeleteShareLot}
                     onDeleteSellTransaction={this.handleDeleteSellTransaction}
+                    onSave={this.headerSaveAction()}
                     onNavigate={this.navigateTo}
                     onBack={() => this.setState({ currentPage: 'portfolio' })}
                     hasUnsavedChanges={hasUnsavedChanges}
@@ -1275,6 +1387,7 @@ class App extends Component<{}, AppState> {
                     onPreviewEtfTaxStatement={this.handlePreviewEtfTaxStatement}
                     onFinalizeEtfTaxStatement={this.handleFinalizeEtfTaxStatement}
                     onDeleteDividend={this.handleDeleteDividend}
+                    onSave={this.headerSaveAction()}
                     hasUnsavedChanges={hasUnsavedChanges}
                     onNavigate={this.navigateTo}
                     onBack={() => this.setState({ currentPage: 'portfolio' })}
@@ -1290,6 +1403,7 @@ class App extends Component<{}, AppState> {
                     holdingEntities={holdingEntities}
                     securities={securities}
                     hasUnsavedChanges={hasUnsavedChanges}
+                    onSave={this.headerSaveAction()}
                     onNavigate={this.navigateTo}
                     onBack={() => this.setState({ currentPage: 'portfolio' })}
                 />
@@ -1307,6 +1421,7 @@ class App extends Component<{}, AppState> {
                     scopeLabel={`${selectedSecurityCode} security`}
                     hasUnsavedChanges={hasUnsavedChanges}
                     onDelete={this.handleDeletePriceRecords(selectedSecurityCode)}
+                    onSave={this.headerSaveAction()}
                     onNavigate={this.navigateTo}
                     onBack={() => this.setState({ currentPage: 'admin' })}
                 />
@@ -1326,6 +1441,7 @@ class App extends Component<{}, AppState> {
                 <AppHeader
                     title={this.state.activePortfolio?.fileName ?? 'Portfolio (not saved)'}
                     hasUnsavedChanges={hasUnsavedChanges}
+                    onSave={this.headerSaveAction()}
                     actions={
                         <>
                             <button class="primary-button" type="button" onClick={() => this.setModalVisibility('isBuyModalOpen', true)}>
@@ -1338,7 +1454,7 @@ class App extends Component<{}, AppState> {
                     }
                     navItems={[
                         ...getPageNavItems(this.navigateTo, 'portfolio'),
-                        { label: 'Save as new copy', onSelect: () => this.savePortfolioToLibrary(true) },
+                        ...this.getOnlineNavItems(),
                         { label: 'Upload data', onSelect: () => this.setModalVisibility('isDataModalOpen', true) },
                         { label: 'Update prices', onSelect: () => this.setModalVisibility('isBulkPriceModalOpen', true) },
                         { label: 'Bulk load transactions', onSelect: () => this.setModalVisibility('isBulkTransactionModalOpen', true) },

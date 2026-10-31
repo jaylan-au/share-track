@@ -1,0 +1,75 @@
+@use 'theme' as *;
+
+.splash-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    box-sizing: border-box;
+    background: linear-gradient(160deg, $color-bg 0%, $color-bg-end 100%);
+}
+
+.splash-card {
+    width: 100%;
+    max-width: 760px;
+    padding: 36px 28px;
+    border-radius: $radius-xl;
+    background: $color-surface;
+    box-shadow: $shadow-md;
+    box-sizing: border-box;
+
+    h1 {
+        margin: 4px 0 12px;
+        font-size: 2rem;
+        color: $color-text;
+    }
+}
+
+.splash-intro {
+    margin: 0 0 24px;
+    color: $color-text-secondary;
+    line-height: 1.5;
+}
+
+.splash-status {
+    color: $color-text-muted;
+}
+
+.splash-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+}
+
+.splash-option {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 20px;
+    border: 1px solid $color-border;
+    border-radius: $radius-lg;
+    background: $color-surface-muted;
+
+    h2 {
+        margin: 0;
+        font-size: 1.15rem;
+        color: $color-text;
+    }
+
+    p {
+        margin: 0;
+        color: $color-text-secondary;
+        line-height: 1.45;
+    }
+
+    button {
+        min-height: $touch-target;
+    }
+}
+
+.splash-hint {
+    font-size: 0.9rem;
+    color: $color-text-muted;
+}

@@ -14,13 +14,14 @@ interface ActivityReportPageProps {
     hasUnsavedChanges: boolean;
     onBack: () => void;
     onNavigate: (page: AppPage) => void;
+    onSave?: () => void;
 }
 
 function getCurrentDateString(): string {
     return new Date().toISOString().slice(0, 10);
 }
 
-export function ActivityReportPage({ transactions, lots, lotLinks, holdingEntities, securities, hasUnsavedChanges, onBack, onNavigate }: ActivityReportPageProps): ComponentChildren {
+export function ActivityReportPage({ transactions, lots, lotLinks, holdingEntities, securities, hasUnsavedChanges, onBack, onNavigate, onSave }: ActivityReportPageProps): ComponentChildren {
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState(getCurrentDateString());
     const [holdingEntity, setHoldingEntity] = useState('');
@@ -63,6 +64,7 @@ export function ActivityReportPage({ transactions, lots, lotLinks, holdingEntiti
             <AppHeader
                 title="Activity report"
                 hasUnsavedChanges={hasUnsavedChanges}
+                onSave={onSave}
                 navItems={getPageNavItems(onNavigate, 'activity-report')}
                 actions={
                     <>

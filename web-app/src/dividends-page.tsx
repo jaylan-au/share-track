@@ -31,6 +31,7 @@ interface DividendsPageProps {
     onDeleteDividend: (dividendTransactionId: string) => void;
     onBack: () => void;
     onNavigate: (page: AppPage) => void;
+    onSave?: () => void;
 }
 
 interface DividendFormState {
@@ -159,6 +160,7 @@ export function DividendsPage({
     onDeleteDividend,
     onBack,
     onNavigate,
+    onSave,
 }: DividendsPageProps): ComponentChildren {
     const [isDividendModalOpen, setIsDividendModalOpen] = useState(false);
     const [isEtfTaxStatementModalOpen, setIsEtfTaxStatementModalOpen] = useState(false);
@@ -355,6 +357,7 @@ export function DividendsPage({
             <AppHeader
                 title="Dividends"
                 hasUnsavedChanges={hasUnsavedChanges}
+                onSave={onSave}
                 navItems={getPageNavItems(onNavigate, 'dividends')}
                 actions={
                     <>

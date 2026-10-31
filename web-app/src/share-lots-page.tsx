@@ -14,6 +14,7 @@ interface ShareLotsPageProps {
     onDeleteShareLot: (shareLotId: string) => void;
     onDeleteSellTransaction: (sellTransactionId: string) => void;
     onNavigate: (page: AppPage) => void;
+    onSave?: () => void;
     onBack: () => void;
 }
 
@@ -128,7 +129,7 @@ function getSortValue(row: ShareLotRowModel, column: SortColumn): string | numbe
     }
 }
 
-export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactions, holdingEntities, hasUnsavedChanges, onDeleteShareLot, onDeleteSellTransaction, onBack, onNavigate }: ShareLotsPageProps): ComponentChildren {
+export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactions, holdingEntities, hasUnsavedChanges, onDeleteShareLot, onDeleteSellTransaction, onBack, onNavigate, onSave }: ShareLotsPageProps): ComponentChildren {
     const [sortColumn, setSortColumn] = useState<SortColumn>('buyDate');
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
     const [expandedLotIds, setExpandedLotIds] = useState<string[]>([]);
@@ -233,6 +234,7 @@ export function ShareLotsPage({ shareLots, shareTransactions, shareLotTransactio
             <AppHeader
                 title="Share lots"
                 hasUnsavedChanges={hasUnsavedChanges}
+                onSave={onSave}
                 navItems={getPageNavItems(onNavigate, 'share-lots')}
                 actions={
                     <>

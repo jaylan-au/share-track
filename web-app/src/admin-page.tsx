@@ -19,6 +19,7 @@ interface AdminPageProps {
     onDeleteAllPriceRecords: (fromDate: string, toDate: string, includePreserved: boolean) => number;
     onBack: () => void;
     onNavigate: (page: AppPage) => void;
+    onSave?: () => void;
 }
 
 export function AdminPage({
@@ -35,6 +36,7 @@ export function AdminPage({
     onDeleteAllPriceRecords,
     onBack,
     onNavigate,
+    onSave,
 }: AdminPageProps): ComponentChildren {
     const [localSecurities, setLocalSecurities] = useState<ShareSecurity[]>(() => securities.map((security) => ({ ...security })));
     const [localHoldingEntities, setLocalHoldingEntities] = useState<HoldingEntity[]>(() => holdingEntities.map((entity) => ({ ...entity })));
@@ -163,6 +165,7 @@ export function AdminPage({
             <AppHeader
                 title="Admin"
                 hasUnsavedChanges={hasUnsavedChanges}
+                onSave={onSave}
                 navItems={getPageNavItems(onNavigate, 'admin')}
                 actions={<button class="secondary-button" type="button" onClick={onBack}>Back to portfolio</button>}
             />

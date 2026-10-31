@@ -16,6 +16,7 @@ interface PriceRecordsPageProps extends PriceRecordDeleteFormProps {
     hasUnsavedChanges: boolean;
     onBack: () => void;
     onNavigate: (page: AppPage) => void;
+    onSave?: () => void;
 }
 
 const dateFormatter = new Intl.DateTimeFormat('en-AU', {
@@ -79,12 +80,13 @@ export function PriceRecordDeleteForm({ scopeLabel, onDelete }: PriceRecordDelet
     );
 }
 
-export function PriceRecordsPage({ code, records, hasUnsavedChanges, scopeLabel, onDelete, onBack, onNavigate }: PriceRecordsPageProps): ComponentChildren {
+export function PriceRecordsPage({ code, records, hasUnsavedChanges, scopeLabel, onDelete, onBack, onNavigate, onSave }: PriceRecordsPageProps): ComponentChildren {
     return (
         <div class="app-shell">
             <AppHeader
                 title={`Price records: ${code}`}
                 hasUnsavedChanges={hasUnsavedChanges}
+                onSave={onSave}
                 navItems={getPageNavItems(onNavigate)}
                 actions={<button class="secondary-button" type="button" onClick={onBack}>Back to Admin</button>}
             />

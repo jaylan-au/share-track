@@ -17,6 +17,7 @@ interface PortfolioLibraryPageProps {
     onTrash: (fileId: string) => void;
     onRestore: (fileId: string) => void;
     onDeletePermanently: (fileId: string) => void;
+    onBack: () => void;
 }
 
 function formatDateTime(value: string): string {
@@ -36,6 +37,7 @@ export function PortfolioLibraryPage(props: PortfolioLibraryPageProps) {
                     <h1>Your portfolios</h1>
                 </div>
                 <div class="library-actions">
+                    <button class="secondary-button" type="button" onClick={props.onBack}>Back to portfolio</button>
                     <button class="primary-button" type="button" onClick={props.onNewPortfolio}>New portfolio</button>
                     <button class="secondary-button" type="button" onClick={() => fileInputRef.current?.click()}>Import JSON</button>
                     <input

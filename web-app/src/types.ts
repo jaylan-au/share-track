@@ -105,9 +105,16 @@ export interface TrashedPortfolioSummary extends PortfolioSummary {
 
 export type LibraryStatus = 'loading' | 'ready' | 'signin-required' | 'error';
 
+export type AuthStatus = 'checking' | 'signed-in' | 'signed-out';
+
 export interface ActivePortfolio {
     id: string;
     fileName: string;
+}
+
+export interface PortfolioNameDialogState {
+    isCopy: boolean;
+    suggestedName: string;
 }
 
 export interface AppState {
@@ -131,9 +138,12 @@ export interface AppState {
     portfolioGroupBy: PortfolioGroupBy;
     currentPage: AppPage;
     selectedSecurityCode: string | null;
+    authStatus: AuthStatus;
+    showSplash: boolean;
     libraryStatus: LibraryStatus;
     libraryError: string | null;
     portfolios: PortfolioSummary[];
     trashedPortfolios: TrashedPortfolioSummary[];
     activePortfolio: ActivePortfolio | null;
+    nameDialog: PortfolioNameDialogState | null;
 }

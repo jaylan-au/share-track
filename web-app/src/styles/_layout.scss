@@ -37,14 +37,38 @@
 }
 
 .unsaved-changes {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     margin-top: 10px;
-    padding: 4px 12px;
+    padding: 4px 6px 4px 12px;
     border-radius: 999px;
     background: $palette-amber;
     color: $palette-navy;
     font-size: 0.8rem;
     font-weight: 700;
+}
+
+.unsaved-save-button {
+    padding: 2px 10px;
+    border: 0;
+    border-radius: 999px;
+    background: $palette-navy;
+    color: $palette-sky;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+        background: $color-primary-hover;
+        color: #fff;
+    }
+
+    &:focus-visible {
+        outline: 2px solid $color-focus;
+        outline-offset: 1px;
+    }
 }
 
 .header-actions {

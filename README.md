@@ -20,7 +20,13 @@ Run `npm install` at the repository root, then start either workspace:
 1. In `backend-server`, copy `.dev.vars.example` to `.dev.vars` and run `npm run dev:worker` (API on http://localhost:8787). `DEV_AUTH=true` skips Access locally.
 2. In `web-app`, run `npm run dev`. `web-app/.env.development` already points at the local API.
 
-### Deploying
+### Online and offline modes
+
+The web app reads `VITE_ONLINE_FILES_ENABLED` at build time (set in `web-app/.env.development` and `web-app/.env.production`):
+
+- `true`: on start, the app checks for a signed-in session. If there is none it shows a splash screen offering **Sign in for online portfolios** or **Continue without signing in**. Online save and the Portfolios list only appear when signed in.
+- `false`: a local-only build. No splash, no sign-in, and no online save/load options. JSON upload and download still work.
+
 
 - **API:** deploy the Worker from `backend-server` with `npm run deploy`, after setting the Access values in `wrangler.jsonc`. See [backend-server/README.md](backend-server/README.md).
 - **Web app:** set `VITE_API_BASE_URL` in `web-app/.env.production` to the Worker's custom domain, then run `npm run deploy:pages --workspace @share-track/web-app` to publish to Cloudflare Pages. The Pages project name is set in that script.

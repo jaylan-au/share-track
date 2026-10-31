@@ -1,6 +1,7 @@
 import { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { AppPage } from '../types';
+import { onlineFilesEnabled } from '../config';
 
 export interface NavItem {
     label: string;
@@ -13,10 +14,11 @@ interface AppHeaderProps {
     hasUnsavedChanges: boolean;
     actions?: ComponentChildren;
     navItems: NavItem[];
+    onSave?: () => void;
 }
 
 const PAGE_LABELS: Record<Exclude<AppPage, 'price-records'>, string> = {
-    library: 'Portfolios',
+    library: 'Online Portfolio List',
     portfolio: 'Portfolio',
     admin: 'Admin',
     'share-lots': 'Share lots',
@@ -25,14 +27,16 @@ const PAGE_LABELS: Record<Exclude<AppPage, 'price-records'>, string> = {
 };
 
 export function getPageNavItems(onNavigate: (page: AppPage) => void, currentPage?: AppPage): NavItem[] {
-    return (Object.keys(PAGE_LABELS) as Array<Exclude<AppPage, 'price-records'>>).map((page) => ({
-        label: PAGE_LABELS[page],
-        onSelect: () => onNavigate(page),
-        isCurrent: page === currentPage,
-    }));
+    return (Object.keys(PAGE_LABELS) as Array<Exclude<AppPage, 'price-records'>>)
+        .filter((page) => onlineFilesEnabled || page !== 'library')
+        .map((page) => ({
+            label: PAGE_LABELS[page],
+            onSelect: () => onNavigate(page),
+            isCurrent: page === currentPage,
+        }));
 }
 
-export function AppHeader({ title, hasUnsavedChanges, actions, navItems }: AppHeaderProps): ComponentChildren {
+export function AppHeader({ title, hasUnsavedChanges, actions, navItems, onSave }: AppHeaderProps): ComponentChildren {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     useEffect(() => {
@@ -56,7 +60,22 @@ export function AppHeader({ title, hasUnsavedChanges, actions, navItems }: AppHe
                 <div class="app-header-title">
                     <p class="eyebrow">ShareTrack</p>
                     <h1>{title}</h1>
-                    {hasUnsavedChanges ? <span class="unsaved-changes">Unsaved changes</span> : null}
+                    {hasUnsavedChanges ? (
+                        <span class="unsaved-changes">
+                            Unsaved changes
+                            {onSave ? (
+                                <button
+                                    type="button"
+                                    class="unsaved-save-button"
+                                    aria-label="Save portfolio"
+                                    title="Save portfolio"
+                                    onClick={onSave}
+                                >
+                                    Save
+                                </button>
+                            ) : null}
+                        </span>
+                    ) : null}
                 </div>
                 <div class="header-actions">
                     {actions}
