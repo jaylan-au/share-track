@@ -68,6 +68,14 @@ tbody tr:hover {
     th {
         background: $color-table-header;
     }
+
+    td[data-label='Document ref'] {
+        white-space: nowrap;
+    }
+
+    td[data-label='Notes'] {
+        min-width: 240px;
+    }
 }
 
 .expanded-row td {

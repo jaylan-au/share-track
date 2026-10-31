@@ -376,7 +376,7 @@ export function DividendsPage({
                     <div class="error-message">{error}</div>
                 ) : null}
 
-                <div class="mobile-sort">
+                <div class="sort-controls">
                     <label class="field">
                         <span>Sort by</span>
                         <select value={sortColumn} onInput={(event) => updateSort((event.target as HTMLSelectElement).value as DividendSortColumn)}>

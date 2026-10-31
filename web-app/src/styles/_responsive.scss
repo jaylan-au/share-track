@@ -184,6 +184,16 @@
         }
     }
 
+    .sort-controls {
+        .field {
+            flex: 1 1 160px;
+        }
+
+        .secondary-button {
+            min-height: $touch-target;
+        }
+    }
+
     .section-header {
         flex-direction: column;
         align-items: stretch;
