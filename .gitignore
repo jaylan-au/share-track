@@ -31,3 +31,4 @@ data
 .dev.vars
 web-app/.env.production
 web-app/.env.development
+backend-server/wrangler.jsonc
