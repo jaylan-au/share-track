@@ -29,3 +29,5 @@ data
 # Cloudflare Workers local state and secrets
 .wrangler
 .dev.vars
+web-app/.env.production
+web-app/.env.development
